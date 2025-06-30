@@ -3,21 +3,41 @@
 	import { toast } from 'svelte-sonner';
 	import { invalidateAll } from '$app/navigation';
 
+	let isSubmitting = $state(false);
+	let responseStatus: 'success' | 'error' | null = $state(null);
+
 	async function handleSubmit(event: Event) {
 		event.preventDefault();
+		isSubmitting = true;
+		responseStatus = null;
+
 		const form = event.target as HTMLFormElement;
 		const formData = new FormData(form);
-		const response = await fetch('?/runScraper', {
-			method: 'POST',
-			body: formData
-		});
-		if (response.ok) {
-			toast.success('Scraping initiated successfully!');
-			await invalidateAll();
-		} else {
-			toast.error('Failed to initiate scraping.');
+		try {
+			const response = await fetch('?/runScraper', {
+				method: 'POST',
+				body: formData
+			});
+			if (response.ok) {
+				responseStatus = 'success';
+			} else {
+				responseStatus = 'error';
+			}
+		} catch (e) {
+			responseStatus = 'error';
+		} finally {
+			isSubmitting = false;
 		}
 	}
+
+	$effect(() => {
+		if (responseStatus === 'success') {
+			toast.success('Scraping initiated successfully!');
+			invalidateAll();
+		} else if (responseStatus === 'error') {
+			toast.error('Failed to initiate scraping.');
+		}
+	});
 </script>
 
 <div class="container mx-auto py-8">
@@ -30,7 +50,9 @@
 			jam data and update the database.
 		</p>
 		<form onsubmit={handleSubmit}>
-			<Button type="submit">Run Scraper</Button>
+			<Button type="submit" disabled={isSubmitting}>
+				{isSubmitting ? 'Running Scraper...' : 'Run Scraper'}
+			</Button>
 		</form>
 	</div>
 </div>
