@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { signIn } from '$lib/auth-client';
+	import { authClient, signIn } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
 
 	let email = $state('');
@@ -13,7 +13,12 @@
 		if (authError) {
 			error = authError.message ?? 'An unknown error occurred.';
 		} else if (data?.user) {
-			goto('/');
+			const session = await authClient.getSession();
+			if (session?.data?.user?.role === 'admin') {
+				goto('/admin');
+			} else {
+				goto('/');
+			}
 		}
 	}
 </script>
