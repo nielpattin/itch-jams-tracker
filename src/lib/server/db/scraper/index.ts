@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import { db } from '$lib/server/db';
 import { jam, type JamStatus } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
+import { sql } from 'drizzle-orm';
 
 async function fetchHtml(url: string): Promise<string | null> {
 	try {
@@ -18,6 +19,8 @@ async function fetchHtml(url: string): Promise<string | null> {
 }
 
 export async function scrapeItchIo() {
+	const scraperDelayMs = parseInt(env.SCRAPER_DELAY_MS || '1000', 10);
+
 	const startUrls = [
 		'https://itch.io/jams/in-progress/sort-date',
 		'https://itch.io/jams/upcoming/sort-date'
@@ -28,9 +31,22 @@ export async function scrapeItchIo() {
 
 		let nextPage: string | null = url;
 		let pageCount = 0;
-		const maxPages = parseInt(env.SCRAPER_MAX_PAGES || '1', 10);
+		const scraperMaxPages = env.SCRAPER_MAX_PAGES;
+		let loopIndefinitely = false;
+		let maxPages = 1; // Default or initial value
 
-		while (nextPage && pageCount < maxPages) {
+		if (scraperMaxPages === 'MAX') {
+			loopIndefinitely = true;
+		} else {
+			maxPages = parseInt(scraperMaxPages || '1', 10);
+		}
+
+		while (nextPage && (loopIndefinitely || pageCount < maxPages)) {
+			if (pageCount > 0) {
+				// Apply delay only after the first page
+				console.log(`Waiting for ${scraperDelayMs}ms before next page scrape...`);
+				await new Promise((resolve) => setTimeout(resolve, scraperDelayMs));
+			}
 			const html = await fetchHtml(nextPage);
 			if (!html) {
 				console.error(`Could not fetch HTML for ${nextPage}, skipping.`);
@@ -41,33 +57,33 @@ export async function scrapeItchIo() {
 
 			const jamDivs = $('div.jam.lazy_images');
 
-			for (const jamDiv of jamDivs.toArray()) {
+			const jamPromises = jamDivs.toArray().map(async (jamDiv) => {
 				const $jamDiv = $(jamDiv);
 				const name = $jamDiv.find('h3 a').text();
 				if (!name) {
 					console.warn('Skipping jam: No name found.');
-					continue;
+					return null;
 				}
 
 				const jamUrl = $jamDiv.find('h3 a').attr('href');
 				if (!jamUrl) {
 					console.warn(`Skipping jam "${name}": No URL found.`);
-					continue;
+					return null;
 				}
 
 				const timingText = $jamDiv.find('div.timestmap.meta_row').text();
 				if (!timingText) {
 					console.warn(`Skipping jam "${name}": No timing text found.`);
-					continue;
+					return null;
 				}
 
 				const utcDate = $jamDiv.find('span.date_countdown').text();
 				if (!utcDate) {
 					console.warn(`Skipping jam "${name}": No UTC date found.`);
-					continue;
+					return null;
 				}
 
-				let category = '';
+				let category: JamStatus | '' = '';
 				const lowercasedTimingText = timingText.toLowerCase();
 				if (lowercasedTimingText.includes('starts in')) {
 					category = 'upcoming';
@@ -76,10 +92,10 @@ export async function scrapeItchIo() {
 				} else if (lowercasedTimingText.includes('voting ends in')) {
 					category = 'voting';
 				} else if (lowercasedTimingText.includes('ended')) {
-					continue; // Skip ended jams
+					return null; // Skip ended jams
 				} else {
 					console.info(`Skipping jam "${name}": Uncategorized timing '${timingText}'.`);
-					continue;
+					return null;
 				}
 
 				const fullUrl = new URL(jamUrl, 'https://itch.io').toString();
@@ -90,7 +106,7 @@ export async function scrapeItchIo() {
 					console.warn(
 						`Skipping details for jam "${name}": Could not fetch HTML for jam page ${fullUrl}.`
 					);
-					continue;
+					return null;
 				}
 				const $jamPage = cheerio.load(jamPageHtml);
 
@@ -110,7 +126,7 @@ export async function scrapeItchIo() {
 				);
 
 				// Extract additional details from the individual jam page
-				const bannerImage = $jamPage('div.jam_header_image img').attr('src') || ''; // Often the same as background, or needs specific selector
+				const bannerImage = $jamPage('div.jam_header_image img').attr('src') || '';
 
 				// Extract start and end dates from the jam page
 				let startDate: Date | null = null;
@@ -127,44 +143,53 @@ export async function scrapeItchIo() {
 					}
 				});
 
+				return {
+					id: crypto.randomUUID(),
+					title: name.trim(),
+					startDate: startDate || new Date(),
+					endDate: endDate || new Date(),
+					jamPageUrl: fullUrl,
+					submissionCount: submissionCount,
+					participatingUsers: participatingUsers,
+					bannerImage: bannerImage,
+					featured: false,
+					status: category as JamStatus
+				};
+			});
+
+			const jamsToInsert = (await Promise.all(jamPromises)).filter(
+				(jamData): jamData is NonNullable<typeof jamData> => jamData !== null
+			);
+
+			if (jamsToInsert.length > 0) {
 				const result = await db
 					.insert(jam)
-					.values({
-						id: crypto.randomUUID(),
-						title: name.trim(),
-						startDate: startDate || new Date(), // Fallback to current date if parsing fails
-						endDate: endDate || new Date(), // Fallback to current date if parsing fails
-						jamPageUrl: fullUrl,
-						submissionCount: submissionCount,
-						participatingUsers: participatingUsers,
-						bannerImage: bannerImage,
-						featured: false, // Default to false, can be updated later if a "featured" indicator is found
-						status: category as JamStatus
-					})
+					.values(jamsToInsert)
 					.onConflictDoUpdate({
 						target: jam.jamPageUrl,
 						set: {
-							title: name.trim(),
-							startDate: startDate || new Date(),
-							endDate: endDate || new Date(),
-							submissionCount: submissionCount,
-							participatingUsers: participatingUsers,
-							bannerImage: bannerImage,
-							status: category as JamStatus
+							title: sql`excluded.title`,
+							startDate: sql`excluded.startDate`,
+							endDate: sql`excluded.endDate`,
+							submissionCount: sql`excluded.submissionCount`,
+							participatingUsers: sql`excluded.participatingUsers`,
+							bannerImage: sql`excluded.bannerImage`,
+							status: sql`excluded.status`
 						}
 					})
 					.returning();
 
 				if (result && result.length > 0) {
-					console.log(`Successfully processed jam: "${name}"`);
+					console.log(`Successfully processed ${result.length} jams.`);
 				} else {
-					console.warn(`Failed to process jam: "${name}"`);
+					console.warn(`Failed to process jams.`);
 				}
 			}
 
 			const nextPageLink = $('a.next_page').attr('href');
 			if (nextPageLink) {
-				nextPage = new URL(nextPageLink, 'https://itch.io').toString();
+				nextPage = new URL(nextPageLink, nextPage).toString();
+				console.log(`Scraping page: ${nextPage}`);
 			} else {
 				nextPage = null;
 			}

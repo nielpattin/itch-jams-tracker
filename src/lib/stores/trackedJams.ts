@@ -47,6 +47,27 @@ function createTrackedJamsStore() {
 		reset: () => {
 			set([]);
 			saveToLocalStorage([]);
+		},
+		set: (ids: string[]) => {
+			set(ids);
+			saveToLocalStorage(ids);
+		},
+		hydrate: () => {
+			if (typeof window !== 'undefined') {
+				const storedValue = localStorage.getItem(LOCAL_STORAGE_KEY);
+				if (storedValue) {
+					try {
+						const ids = JSON.parse(storedValue);
+						if (Array.isArray(ids)) {
+							set(ids);
+						}
+					} catch {
+						set([]);
+					}
+				} else {
+					set([]);
+				}
+			}
 		}
 	};
 }
