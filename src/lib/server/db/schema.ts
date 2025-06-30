@@ -1,5 +1,7 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 
+export type JamStatus = 'upcoming' | 'in-progress' | 'voting' | 'ended';
+
 export const user = sqliteTable('user', {
 	id: text('id').primaryKey(),
 	name: text('name').notNull(),
@@ -63,4 +65,23 @@ export const verification = sqliteTable('verification', {
 	updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(
 		() => /* @__PURE__ */ new Date()
 	)
+});
+
+export const jam = sqliteTable('jam', {
+	id: text('id').primaryKey(),
+	title: text('title').notNull(),
+	startDate: integer('start_date', { mode: 'timestamp' }).notNull(),
+	endDate: integer('end_date', { mode: 'timestamp' }).notNull(),
+	jamPageUrl: text('jam_page_url').notNull().unique(),
+	submissionCount: integer('submission_count').default(0).notNull(),
+	participatingUsers: integer('participating_users').default(0).notNull(),
+	bannerImage: text('banner_image'),
+	featured: integer('featured', { mode: 'boolean' }).default(false).notNull(),
+	status: text('status').$type<JamStatus>().default('upcoming').notNull(),
+	createdAt: integer('created_at', { mode: 'timestamp' })
+		.$defaultFn(() => new Date())
+		.notNull(),
+	updatedAt: integer('updated_at', { mode: 'timestamp' })
+		.$defaultFn(() => new Date())
+		.notNull()
 });
