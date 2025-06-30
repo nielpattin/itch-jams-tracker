@@ -13,7 +13,9 @@
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
 		"db:push": "drizzle-kit push",
+		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
+		"db:seed": "npx tsx src/lib/server/db/seed.ts",
 		"db:studio": "drizzle-kit studio"
 	},
 	"devDependencies": {
@@ -24,6 +26,7 @@
 		"@sveltejs/vite-plugin-svelte": "^5.0.0",
 		"@tailwindcss/vite": "^4.0.0",
 		"@types/node": "^22",
+		"dotenv": "^17.0.0",
 		"drizzle-kit": "^0.30.2",
 		"eslint": "^9.18.0",
 		"eslint-config-prettier": "^10.0.1",
@@ -42,10 +45,12 @@
 	},
 	"dependencies": {
 		"@libsql/client": "^0.14.0",
+		"better-auth": "^1.2.12",
 		"drizzle-orm": "^0.40.0"
 	},
 	"pnpm": {
 		"onlyBuiltDependencies": [
+			"@tailwindcss/oxide",
 			"esbuild"
 		]
 	},
