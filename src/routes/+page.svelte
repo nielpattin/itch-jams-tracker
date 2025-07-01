@@ -16,22 +16,49 @@
 	let hasMore = $state(data.hasMore);
 	let isLoading = $state(false);
 
-	// Always up-to-date derived lists
-	let trackedJamsList = $state([] as Jam[]);
-	let untrackedJams = $state([] as Jam[]);
+	// Category filter state
+	const JAM_STATUSES = ['all', 'upcoming', 'in-progress', 'voting', 'ended'] as const;
+	type JamStatusFilter = (typeof JAM_STATUSES)[number];
+	let selectedCategory = $state<JamStatusFilter>('all');
+
+	const trackedJamIds = $derived(() => new Set($trackedJams));
+
+	const trackedJamsList = $derived(() => jams.filter((jam: Jam) => trackedJamIds().has(jam.id)));
+	const untrackedJams = $derived(() => jams.filter((jam: Jam) => !trackedJamIds().has(jam.id)));
+
+	// Fetch jams from server when category changes
+	async function fetchJamsByCategory(category: JamStatusFilter) {
+		isLoading = true;
+		try {
+			const response = await fetch(`/jams?category=${category}&limit=8&offset=0`, {
+				cache: 'no-store'
+			});
+			const newData = await response.json();
+			jams = newData.jams;
+			nextOffset = newData.nextOffset;
+			hasMore = newData.hasMore;
+		} catch (error) {
+			console.error('Error fetching jams by category:', error);
+		} finally {
+			isLoading = false;
+		}
+	}
 
 	$effect(() => {
-		trackedJamsList = jams.filter((jam: Jam) => $trackedJams.includes(jam.id));
-		untrackedJams = jams.filter((jam: Jam) => !$trackedJams.includes(jam.id));
+		// Fetch jams when selectedCategory changes
+		fetchJamsByCategory(selectedCategory);
 	});
 
 	const loadMoreJams = async () => {
 		if (!hasMore || isLoading) return;
 		isLoading = true;
 		try {
-			const response = await fetch(`/jams?limit=8&offset=${nextOffset}`, {
-				cache: 'no-store'
-			});
+			const response = await fetch(
+				`/jams?limit=8&offset=${nextOffset}&category=${selectedCategory}`,
+				{
+					cache: 'no-store'
+				}
+			);
 			const newData = await response.json();
 			jams = [...jams, ...newData.jams];
 			nextOffset = newData.nextOffset;
@@ -64,6 +91,14 @@
 
 	function toggleTimePreference() {
 		timePreference.set($timePreference === 'UTC' ? 'Local' : 'UTC');
+	}
+
+	function handleTrack(jamId: string) {
+		trackedJams.add(jamId);
+	}
+
+	function handleUntrack(jamId: string) {
+		trackedJams.remove(jamId);
 	}
 
 	// Hydrate tracked jams after hydration
@@ -105,21 +140,21 @@
 			<div class="max-h-[calc(100vh-20rem)] flex-grow overflow-y-auto">
 				<Card>
 					<CardHeader>
-						<CardTitle>Tracked Jams ({trackedJamsList.length})</CardTitle>
+						<CardTitle>Tracked Jams ({trackedJamsList().length})</CardTitle>
 					</CardHeader>
 					<CardContent>
-						{#if trackedJamsList.length > 0}
-							{#each trackedJamsList as jam (jam.id)}
+						{#if trackedJamsList().length > 0}
+							{#each trackedJamsList() as jam (jam.id)}
 								<JamListItem
 									{jam}
 									actionType="untrack"
-									onAction={() => trackedJams.remove(jam.id)}
+									onAction={() => handleUntrack(jam.id.toString())}
 								/>
 							{/each}
 						{:else}
 							<div class="text-muted-foreground flex flex-col items-center justify-center p-4">
 								<span class="mb-2 text-5xl">😔</span>
-								<p>No tracked jams yet.</p>
+								<p>No tracked jams yet for this category.</p>
 								<p>Start tracking some jams to see them here!</p>
 							</div>
 						{/if}
@@ -131,7 +166,21 @@
 		<!-- Right Column -->
 		<div class="flex flex-col gap-6">
 			<h3 class="mb-2 text-lg font-semibold">Category</h3>
-			Category Select will go here
+			<div class="mb-2">
+				<select
+					class="bg-card text-card-foreground border-border focus:ring-primary rounded border px-3 py-2 focus:ring-2 focus:outline-none"
+					bind:value={selectedCategory}
+					onchange={() => fetchJamsByCategory(selectedCategory)}
+				>
+					{#each JAM_STATUSES as status}
+						<option value={status}>
+							{status === 'all'
+								? 'All'
+								: status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
+						</option>
+					{/each}
+				</select>
+			</div>
 
 			<div class="max-h-[calc(100vh-20rem)] flex-grow overflow-y-auto">
 				<Card>
@@ -139,11 +188,15 @@
 						<CardTitle>Untracked Jams</CardTitle>
 					</CardHeader>
 					<CardContent>
-						{#each untrackedJams as jam (jam.id)}
-							<JamListItem {jam} actionType="track" onAction={() => trackedJams.add(jam.id)} />
+						{#each untrackedJams() as jam (jam.id)}
+							<JamListItem
+								{jam}
+								actionType="track"
+								onAction={() => handleTrack(jam.id.toString())}
+							/>
 						{/each}
 						{#if isLoading}
-							<div class="text-muted-foreground flex justify-center p-4">Loading more jams...</div>
+							<div class="text-muted-foreground flex justify-center p-4">Loading jams...</div>
 						{:else if !hasMore}
 							<div class="text-muted-foreground flex justify-center p-4">No more jams to load.</div>
 						{/if}

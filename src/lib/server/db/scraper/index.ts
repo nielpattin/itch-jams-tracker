@@ -85,14 +85,14 @@ export async function scrapeItchIo() {
 
 				let category: JamStatus | '' = '';
 				const lowercasedTimingText = timingText.toLowerCase();
-				if (lowercasedTimingText.includes('starts in')) {
+				if (lowercasedTimingText.includes('ended')) {
+					category = 'ended';
+				} else if (lowercasedTimingText.includes('starts in')) {
 					category = 'upcoming';
 				} else if (lowercasedTimingText.includes('submission closes in')) {
 					category = 'in-progress';
 				} else if (lowercasedTimingText.includes('voting ends in')) {
 					category = 'voting';
-				} else if (lowercasedTimingText.includes('ended')) {
-					return null; // Skip ended jams
 				} else {
 					console.info(`Skipping jam "${name}": Uncategorized timing '${timingText}'.`);
 					return null;
@@ -169,11 +169,11 @@ export async function scrapeItchIo() {
 						target: jam.jamPageUrl,
 						set: {
 							title: sql`excluded.title`,
-							startDate: sql`excluded.startDate`,
-							endDate: sql`excluded.endDate`,
-							submissionCount: sql`excluded.submissionCount`,
-							participatingUsers: sql`excluded.participatingUsers`,
-							bannerImage: sql`excluded.bannerImage`,
+							startDate: sql`excluded.start_date`,
+							endDate: sql`excluded.end_date`,
+							submissionCount: sql`excluded.submission_count`,
+							participatingUsers: sql`excluded.participating_users`,
+							bannerImage: sql`excluded.banner_image`,
 							status: sql`excluded.status`
 						}
 					})
@@ -187,13 +187,17 @@ export async function scrapeItchIo() {
 			}
 
 			const nextPageLink = $('a.next_page').attr('href');
+			pageCount++; // Increment pageCount at the end of the current page's processing
+
 			if (nextPageLink) {
 				nextPage = new URL(nextPageLink, nextPage).toString();
-				console.log(`Scraping page: ${nextPage}`);
+				// Only log if we are actually going to scrape the next page
+				if (loopIndefinitely || pageCount < maxPages) {
+					console.log(`Scraping page: ${nextPage}`);
+				}
 			} else {
 				nextPage = null;
 			}
-			pageCount++;
 		}
 	}
 }
