@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import InfoButtons from '$lib/components/InfoButtons.svelte';
-	import { Card, CardHeader, CardTitle } from '$lib/components/ui/card';
-	import { ScrollArea, ScrollAreaScrollbar } from '$lib/components/ui/scroll-area';
 	import { Input } from '$lib/components/ui/input';
 	import JamListItem from '$lib/components/JamListItem.svelte';
 	import { trackedJams } from '$lib/stores/trackedJams';
@@ -20,9 +18,27 @@
 	let nextOffset = $state(data.nextOffset);
 	let isLoading = $state(false);
 
+	// --- Switch UI fix + localStorage persistence ---
+	const TIME_PREF_KEY = 'itchjam-time-preference';
+	let isLocal = $state(false);
+
+	onMount(() => {
+		const stored = localStorage.getItem(TIME_PREF_KEY);
+		if (stored === 'Local' || stored === 'UTC') {
+			timePreference.set(stored);
+		}
+	});
+
+	$effect(() => {
+		isLocal = $timePreference === 'Local';
+		localStorage.setItem(TIME_PREF_KEY, $timePreference);
+	});
+	// ------------------------------------------------
+
 	// Category filter state
 	const JAM_STATUSES = ['all', 'upcoming', 'in-progress', 'voting', 'ended'] as const;
 	type JamStatusFilter = (typeof JAM_STATUSES)[number];
+	let CATEGORY_KEY = 'itchjam-category';
 	let selectedCategory = $state<JamStatusFilter>('all');
 
 	let trackedJamIds = $state(new Set<string>()); // Use $state for direct reactivity
@@ -47,6 +63,7 @@
 			const newData = await response.json();
 			jams = newData.jams;
 			hasMore = newData.hasMore;
+			localStorage.setItem(CATEGORY_KEY, category);
 		} catch (error) {
 			console.error('Error fetching jams by category:', error);
 		} finally {
@@ -99,13 +116,30 @@
 		// Hydrate tracked jams from local storage immediately on mount
 		trackedJams.hydrate();
 
+		// Restore category from localStorage
+		const storedCategory = localStorage.getItem(CATEGORY_KEY);
+		if (
+			storedCategory &&
+			['all', 'upcoming', 'in-progress', 'voting', 'ended'].includes(storedCategory)
+		) {
+			selectedCategory = storedCategory as JamStatusFilter;
+		}
+
 		// Set up IntersectionObserver for infinite scroll
 		if (sentinel && untrackedJamsContent) {
 			observer = new IntersectionObserver(
 				(entries) => {
 					for (const entry of entries) {
 						if (entry.isIntersecting) {
-							loadMoreJams();
+							// Only fetch if category is 'all' and list is empty (first scroll)
+							if (
+								selectedCategory === 'all' &&
+								untrackedJams().length === 0 &&
+								hasMore &&
+								!isLoading
+							) {
+								loadMoreJams();
+							}
 						}
 					}
 				},
@@ -163,8 +197,8 @@
 		$timePreference === 'Local' ? 'Local Time' : 'UTC Time'
 	);
 
-	function toggleTimePreference() {
-		timePreference.set($timePreference === 'UTC' ? 'Local' : 'UTC');
+	function handleSwitchChange() {
+		timePreference.set(isLocal ? 'UTC' : 'Local');
 	}
 
 	function handleTrack(jamId: string) {
@@ -181,14 +215,10 @@
 >
 	<!-- Header Section -->
 	<header class="flex items-center gap-4">
-		<h1 class="text-chart-1 mb-4 text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
+		<h1 class="text-foreground mb-4 text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
 		<InfoButtons />
 		<div class="flex items-center gap-2">
-			<Switch
-				id="time-preference"
-				checked={$timePreference === 'Local'}
-				onclick={toggleTimePreference}
-			/>
+			<Switch id="time-preference" bind:checked={isLocal} onclick={handleSwitchChange} />
 			<Label for="time-preference">{timePreferenceLabel()}</Label>
 		</div>
 	</header>
@@ -199,11 +229,13 @@
 			<h3 class="mb-2 text-lg font-semibold">Search</h3>
 			<Input type="text" placeholder="Search for a jam..." />
 
-			<Card class="flex flex-grow flex-col">
-				<CardHeader>
-					<CardTitle>Tracked Jams ({trackedJamsList().length})</CardTitle>
-				</CardHeader>
-				<ScrollArea class="max-h-[512px] flex-grow">
+			<div class="flex flex-grow flex-col">
+				<div class="px-0 pb-2">
+					<h2 class="text-lg font-semibold">Tracked Jams ({trackedJamsList().length})</h2>
+				</div>
+				<div
+					class="bg-background border-border h-[512px] max-h-[512px] overflow-y-auto rounded-lg border"
+				>
 					<div class="p-4">
 						{#if trackedJamsList().length > 0}
 							{#each trackedJamsList() as jam (jam.id)}
@@ -221,9 +253,8 @@
 							</div>
 						{/if}
 					</div>
-					<ScrollAreaScrollbar orientation="vertical" />
-				</ScrollArea>
-			</Card>
+				</div>
+			</div>
 		</div>
 
 		<!-- Right Column -->
@@ -245,11 +276,14 @@
 				</select>
 			</div>
 
-			<Card bind:ref={untrackedJamsContainer} class="flex flex-grow flex-col">
-				<CardHeader>
-					<CardTitle>Untracked Jams</CardTitle>
-				</CardHeader>
-				<ScrollArea bind:ref={untrackedJamsContent} class="max-h-[512px] flex-grow">
+			<div class="flex flex-grow flex-col">
+				<div class="px-0 pb-2">
+					<h2 class="text-lg font-semibold">Untracked Jams</h2>
+				</div>
+				<div
+					class="bg-background border-border h-[512px] max-h-[512px] overflow-y-auto rounded-lg border"
+					bind:this={untrackedJamsContent}
+				>
 					<div class="p-4">
 						{#each untrackedJams() as jam (jam.id)}
 							<JamListItem
@@ -267,9 +301,8 @@
 							<div bind:this={sentinel} style="height: 1px;"></div>
 						{/if}
 					</div>
-					<ScrollAreaScrollbar orientation="vertical" />
-				</ScrollArea>
-			</Card>
+				</div>
+			</div>
 		</div>
 	</div>
 </div>

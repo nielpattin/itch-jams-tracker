@@ -22,8 +22,8 @@ export async function scrapeItchIo() {
 	const scraperDelayMs = parseInt(env.SCRAPER_DELAY_MS || '1000', 10);
 
 	const startUrls = [
-		'https://itch.io/jams/in-progress/sort-date'
-		// 'https://itch.io/jams/upcoming/sort-date'
+		'https://itch.io/jams/in-progress/sort-date',
+		'https://itch.io/jams/upcoming/sort-date'
 	];
 
 	for (const url of startUrls) {
