@@ -22,8 +22,8 @@ export async function scrapeItchIo() {
 	const scraperDelayMs = parseInt(env.SCRAPER_DELAY_MS || '1000', 10);
 
 	const startUrls = [
-		'https://itch.io/jams/in-progress/sort-date',
-		'https://itch.io/jams/upcoming/sort-date'
+		'https://itch.io/jams/in-progress/sort-date'
+		// 'https://itch.io/jams/upcoming/sort-date'
 	];
 
 	for (const url of startUrls) {
@@ -55,7 +55,7 @@ export async function scrapeItchIo() {
 			}
 			const $ = cheerio.load(html);
 
-			const jamDivs = $('div.jam.lazy_images');
+			const jamDivs = $('div.jam');
 
 			const jamPromises = jamDivs.toArray().map(async (jamDiv) => {
 				const $jamDiv = $(jamDiv);
@@ -77,90 +77,97 @@ export async function scrapeItchIo() {
 					return null;
 				}
 
-				const utcDate = $jamDiv.find('span.date_countdown').text();
-				if (!utcDate) {
+				const dateCountdownSpan = $jamDiv.find('span.date_countdown');
+				const utcDateText = dateCountdownSpan.text();
+				const utcDateTitle = dateCountdownSpan.attr('title');
+
+				if (!utcDateText && !utcDateTitle) {
 					console.warn(`Skipping jam "${name}": No UTC date found.`);
 					return null;
 				}
 
-				let category: JamStatus | '' = '';
-				const lowercasedTimingText = timingText.toLowerCase();
-				if (lowercasedTimingText.includes('ended')) {
-					category = 'ended';
-				} else if (lowercasedTimingText.includes('starts in')) {
-					category = 'upcoming';
-				} else if (lowercasedTimingText.includes('submission closes in')) {
-					category = 'in-progress';
-				} else if (lowercasedTimingText.includes('voting ends in')) {
-					category = 'voting';
-				} else {
-					console.info(`Skipping jam "${name}": Uncategorized timing '${timingText}'.`);
+				// Extract the status and determine which date to use
+				let startDate: Date | null = null;
+				let endDate: Date | null = null;
+
+				const statusMatch = timingText.match(
+					/(Starts in|Ended|Submission closes in|Voting ends in)/
+				);
+				if (!statusMatch) {
+					console.info(`Skipping jam "${name}": No recognizable status found in timing text.`);
 					return null;
+				}
+
+				// Map the raw status text to the JamStatus enum
+				let status: JamStatus = 'upcoming'; // Default to 'upcoming' if no match
+				switch (statusMatch[0]) {
+					case 'Starts in':
+						status = 'upcoming';
+						break;
+					case 'Submission closes in':
+						status = 'in-progress';
+						break;
+					case 'Voting ends in':
+						status = 'voting';
+						break;
+					case 'Ended':
+						status = 'ended';
+						break;
+					default:
+						console.warn(`Unexpected status text: ${statusMatch[0]}`);
+						break;
+				}
+				const dateText = utcDateTitle || utcDateText;
+				if (!dateText) {
+					console.warn(`Skipping jam "${name}": No date text found.`);
+					return null;
+				}
+
+				const date = new Date(dateText);
+				if (isNaN(date.getTime())) {
+					console.warn(`Skipping jam "${name}": Invalid date format "${dateText}"`);
+					return null;
+				}
+
+				if (status === 'upcoming') {
+					startDate = date;
+				} else {
+					endDate = date;
 				}
 
 				const fullUrl = new URL(jamUrl, 'https://itch.io').toString();
 
-				// Fetch and parse the jam's individual page for more details
-				const jamPageHtml = await fetchHtml(fullUrl);
-				if (!jamPageHtml) {
-					console.warn(
-						`Skipping details for jam "${name}": Could not fetch HTML for jam page ${fullUrl}.`
-					);
-					return null;
-				}
-				const $jamPage = cheerio.load(jamPageHtml);
-
+				// Extract all required fields from the main page's div.jam element
 				const participatingUsers = parseInt(
-					$jamDiv
-						.find('div.jam_stats > div.stat:nth-child(1) > span.number')
-						.text()
-						.replace(/,/g, '') || '0',
+					$jamDiv.find('div.jam_stats .stat:first-child span.number').text().replace(/,/g, '') ||
+						'0',
 					10
 				);
 				const submissionCount = parseInt(
-					$jamDiv
-						.find('div.jam_stats > a.stat:nth-child(2) > span.number')
-						.text()
-						.replace(/,/g, '') || '0',
+					$jamDiv.find('div.jam_stats a.stat span.number').text().replace(/,/g, '') || '0',
 					10
 				);
-
-				// Extract additional details from the individual jam page
-				const bannerImage = $jamPage('div.jam_header_image img').attr('src') || '';
-
-				// Extract start and end dates from the jam page
-				let startDate: Date | null = null;
-				let endDate: Date | null = null;
-
-				$jamPage('div.jam_sidebar_widget ul li').each((_i, el) => {
-					const text = $jamPage(el).text();
-					if (text?.includes('Starts:')) {
-						const dateString = text.replace('Starts:', '').trim();
-						startDate = new Date(dateString);
-					} else if (text?.includes('Ends:')) {
-						const dateString = text.replace('Ends:', '').trim();
-						endDate = new Date(dateString);
-					}
-				});
+				const bannerImage = $jamDiv.find('.jam_cover').attr('data-background_image') || '';
+				const host = $jamDiv.find('.hosted_by a').text().trim() || '';
 
 				return {
 					id: crypto.randomUUID(),
 					title: name.trim(),
-					startDate: startDate || new Date(),
-					endDate: endDate || new Date(),
+					startDate: startDate,
+					endDate: endDate,
 					jamPageUrl: fullUrl,
 					submissionCount: submissionCount,
 					participatingUsers: participatingUsers,
 					bannerImage: bannerImage,
+					host: host,
 					featured: false,
-					status: category as JamStatus
+					status: status
 				};
 			});
 
 			const jamsToInsert = (await Promise.all(jamPromises)).filter(
 				(jamData): jamData is NonNullable<typeof jamData> => jamData !== null
 			);
-
 			if (jamsToInsert.length > 0) {
 				const result = await db
 					.insert(jam)
@@ -174,6 +181,7 @@ export async function scrapeItchIo() {
 							submissionCount: sql`excluded.submission_count`,
 							participatingUsers: sql`excluded.participating_users`,
 							bannerImage: sql`excluded.banner_image`,
+							host: sql`excluded.host`,
 							status: sql`excluded.status`
 						}
 					})

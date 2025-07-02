@@ -118,4 +118,49 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Custom scrollbar styles */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--ring);
+  }
+
+  /* Always show scrollbar for shadcn-svelte scroll-area */
+  [data-radix-scroll-area-viewport] {
+    scrollbar-width: thin; /* For Firefox */
+    scrollbar-color: var(--border) var(--background); /* For Firefox */
+  }
+
+  [data-radix-scroll-area-viewport]::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  [data-radix-scroll-area-viewport]::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 10px;
+  }
+
+  [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 10px;
+  }
+
+  [data-radix-scroll-area-viewport]::-webkit-scrollbar-thumb:hover {
+    background: var(--ring);
+  }
 }

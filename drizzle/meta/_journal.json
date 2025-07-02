@@ -22,6 +22,20 @@
       "when": 1751272528147,
       "tag": "0002_add_jam_table",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1751424109701,
+      "tag": "0003_lush_slyde",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1751424212554,
+      "tag": "0004_Add host field to jam table",
+      "breakpoints": true
     }
   ]
 }

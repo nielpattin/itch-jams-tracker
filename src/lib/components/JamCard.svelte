@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import { timePreference } from '$lib/stores/timePreference';
 
 	type Jam = {
 		id: string;
 		title: string;
-		startDate: Date;
-		endDate: Date;
+		start_date: Date | null;
+		end_date: Date | null;
 		jamPageUrl: string;
 		submissionCount: number;
 		participatingUsers: number;
@@ -23,15 +24,48 @@
 		buttonText: string;
 	}>();
 
-	const formatDateTime = (date: Date) => {
-		return new Intl.DateTimeFormat('en-US', {
+	let currentPreference = $derived($timePreference);
+
+	const formatDateTime = (date: Date | null) => {
+		if (!date || isNaN(date.getTime())) {
+			return 'N/A';
+		}
+
+		const options: Intl.DateTimeFormatOptions = {
 			year: 'numeric',
 			month: 'long',
 			day: 'numeric',
 			hour: 'numeric',
 			minute: 'numeric',
 			hour12: true
-		}).format(date);
+		};
+
+		if (currentPreference === 'UTC') {
+			options.timeZone = 'UTC';
+		}
+
+		return new Intl.DateTimeFormat('en-US', options).format(date);
+	};
+
+	const getStatusText = (status: Jam['status'], start_date: Date | null, end_date: Date | null) => {
+		const statusMap: Record<Jam['status'], string> = {
+			upcoming: 'Starts in',
+			'in-progress': 'Submission closes in',
+			voting: 'Voting ends in',
+			ended: 'Ended'
+		};
+
+		const displayStatus = statusMap[status] || 'Unknown';
+
+		if (status === 'upcoming' && start_date) {
+			return `${displayStatus} ${formatDateTime(start_date)}`;
+		} else if (status === 'ended' && end_date) {
+			return `${displayStatus} ${formatDateTime(end_date)}`;
+		} else if (status === 'voting' && end_date) {
+			return `${displayStatus} ${formatDateTime(end_date)}`;
+		} else {
+			return displayStatus;
+		}
 	};
 </script>
 
@@ -46,8 +80,11 @@
 	<CardContent>
 		<p>Submissions: {jam.submissionCount}</p>
 		<p>Participants: {jam.participatingUsers}</p>
-		<p>Starts: {formatDateTime(jam.startDate)}</p>
-		<p>Ends: {formatDateTime(jam.endDate)}</p>
+		{#if jam.status === 'upcoming'}
+			<p>Starts: {formatDateTime(jam.start_date)}</p>
+		{/if}
+		<p>Ends: {formatDateTime(jam.end_date)}</p>
+		<p>{getStatusText(jam.status, jam.start_date, jam.end_date)}</p>
 	</CardContent>
 	<CardFooter>
 		<Button onclick={() => onAction(jam.id)} class="w-full">{buttonText}</Button>

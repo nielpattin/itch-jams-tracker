@@ -1,0 +1,1 @@
+ALTER TABLE `jam` ADD `host` text;

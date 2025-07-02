@@ -14,8 +14,8 @@ export const auth = betterAuth({
 	plugins: [admin()],
 
 	session: {
-		expiresIn: 60 * 5, // 5 minutes
-		updateAge: 60 * 5 // 5 minutes (every 5 minutes the session expiration is updated)
+		expiresIn: 60 * 60, // 60 minutes
+		updateAge: 60 * 60 // 60 minutes (every 60 minutes the session expiration is updated)
 	}
 });
 

@@ -1,7 +1,8 @@
 import { db } from '$lib/server/db';
 
 export async function load({ url }) {
-	const limit = Number(url.searchParams.get('limit') ?? 8);
+	// const category = url.searchParams.get('category') ?? 'all';
+	const limit = Number(url.searchParams.get('limit') ?? 10);
 	const offset = Number(url.searchParams.get('offset') ?? 0);
 
 	const jams = await db.query.jam.findMany({
