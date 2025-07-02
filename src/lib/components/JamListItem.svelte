@@ -144,7 +144,9 @@
 					Starts: {formatDateTime(parseDate(jam.startDate))}
 				</p>
 			{/if}
-			<p class="text-muted-foreground text-xs">Ends: {formatDateTime(parseDate(jam.endDate))}</p>
+			{#if jam.endDate && jam.status !== 'upcoming'}
+				<p class="text-muted-foreground text-xs">Ends: {formatDateTime(parseDate(jam.endDate))}</p>
+			{/if}
 		</div>
 		<div class="flex-shrink-0">
 			<Button onclick={onAction}>Add</Button>
@@ -157,7 +159,9 @@
 					Starts: {formatDateTime(parseDate(jam.startDate))}
 				</p>
 			{/if}
-			<p class="text-muted-foreground text-xs">Ends: {formatDateTime(parseDate(jam.endDate))}</p>
+			{#if jam.endDate && jam.status !== 'upcoming'}
+				<p class="text-muted-foreground text-xs">Ends: {formatDateTime(parseDate(jam.endDate))}</p>
+			{/if}
 		</div>
 		<div class="flex flex-shrink-0 flex-col items-end text-sm">
 			<div class="flex flex-row items-center gap-2">
