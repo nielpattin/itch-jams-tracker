@@ -131,19 +131,14 @@
 				(entries) => {
 					for (const entry of entries) {
 						if (entry.isIntersecting) {
-							// Only fetch if category is 'all' and list is empty (first scroll)
-							if (
-								selectedCategory === 'all' &&
-								untrackedJams().length === 0 &&
-								hasMore &&
-								!isLoading
-							) {
+							// Fetch more jams if there are more to load and not currently loading
+							if (hasMore && !isLoading) {
 								loadMoreJams();
 							}
 						}
 					}
 				},
-				{ root: untrackedJamsContent, rootMargin: '0px 0px 200px 0px', threshold: 0 }
+				{ root: untrackedJamsContent, rootMargin: '0px 0px 400px 0px', threshold: 0 }
 			);
 			observer.observe(sentinel);
 		}
@@ -211,7 +206,7 @@
 </script>
 
 <div
-	class="bg-background text-foreground mx-auto flex h-screen max-w-7xl flex-col space-y-6 p-4 md:space-y-8 md:p-6 lg:p-8"
+	class="bg-background text-foreground mx-auto flex min-h-screen max-w-7xl flex-col space-y-6 p-4 md:space-y-8 md:p-6 lg:p-8"
 >
 	<!-- Header Section -->
 	<header class="flex items-center gap-4">
@@ -234,7 +229,7 @@
 					<h2 class="text-lg font-semibold">Tracked Jams ({trackedJamsList().length})</h2>
 				</div>
 				<div
-					class="bg-background border-border h-[512px] max-h-[512px] overflow-y-auto rounded-lg border"
+					class="bg-background border-border max-h-[calc(100vh-350px)] overflow-y-auto rounded-lg border"
 				>
 					<div class="p-4">
 						{#if trackedJamsList().length > 0}
@@ -281,7 +276,7 @@
 					<h2 class="text-lg font-semibold">Untracked Jams</h2>
 				</div>
 				<div
-					class="bg-background border-border h-[512px] max-h-[512px] overflow-y-auto rounded-lg border"
+					class="bg-background border-border max-h-[calc(100vh-350px)] overflow-y-auto rounded-lg border"
 					bind:this={untrackedJamsContent}
 				>
 					<div class="p-4">

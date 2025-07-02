@@ -73,7 +73,19 @@
 
 		if (jam.status === 'upcoming') {
 			target = parseDate(jam.startDate);
-			label = 'Starts in';
+			if (!target) {
+				countdown = { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
+				return;
+			}
+			let diff = Math.floor((target.getTime() - now.getTime()) / 1000);
+			if (diff <= 0) {
+				label = 'Started';
+				showCountdown = false;
+				countdown = { days: 0, hours: 0, minutes: 0, seconds: 0, expired: true };
+				return;
+			} else {
+				label = 'Starts in';
+			}
 		} else if (jam.status === 'in-progress') {
 			target = parseDate(jam.endDate);
 			label = 'Ends in';
