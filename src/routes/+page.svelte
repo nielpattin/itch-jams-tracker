@@ -8,17 +8,17 @@
 	import { Switch } from '$lib/components/ui/switch';
 	import { Label } from '$lib/components/ui/label';
 	import type { jam as jamSchema } from '$lib/server/db/schema';
-	import { getJamIdsSet } from '$lib/utils'; // Import the new utility
+	import { getJamIdsSet } from '$lib/utils';
+	import { ChevronDown } from '@lucide/svelte';
 
 	type Jam = typeof jamSchema.$inferSelect;
 
 	let { data } = $props();
-	let jams = $state(data.jams); // Revert to initial data.jams
+	let jams = $state(data.jams);
 	let hasMore = $state(data.hasMore);
 	let nextOffset = $state(data.nextOffset);
 	let isLoading = $state(false);
 
-	// --- Switch UI fix + localStorage persistence ---
 	const TIME_PREF_KEY = 'itchjam-time-preference';
 	let isLocal = $state(false);
 
@@ -41,15 +41,14 @@
 	let CATEGORY_KEY = 'itchjam-category';
 	let selectedCategory = $state<JamStatusFilter>('all');
 
-	let trackedJamIds = $state(new Set<string>()); // Use $state for direct reactivity
-	let trackedJamsData = $state<Jam[]>([]); // Store full jam objects for tracked jams
+	let trackedJamIds = $state(new Set<string>());
+	let trackedJamsData = $state<Jam[]>([]);
 
-	// Derived stores for filtering
 	const trackedJamsList = $derived(() => {
-		return trackedJamsData.filter((jam: Jam) => trackedJamIds.has(jam.id)); // Filter only from trackedJamsData
+		return trackedJamsData.filter((jam: Jam) => trackedJamIds.has(jam.id));
 	});
 	const untrackedJams = $derived(() => {
-		return jams.filter((jam: Jam) => !trackedJamIds.has(jam.id)); // Filter only from jams
+		return jams.filter((jam: Jam) => !trackedJamIds.has(jam.id));
 	});
 
 	// Fetch jams from server when category changes
@@ -93,8 +92,7 @@
 	};
 
 	let sentinel = $state<HTMLDivElement | null>(null);
-	let untrackedJamsContainer = $state<HTMLDivElement | null>(null); // This is the Card component
-	let untrackedJamsContent = $state<HTMLDivElement | null>(null); // This will be the CardContent component
+	let untrackedJamsContent = $state<HTMLDivElement | null>(null);
 
 	// IntersectionObserver setup/cleanup
 	let observer: IntersectionObserver | null = $state(null);
@@ -159,7 +157,7 @@
 
 	// Derived store for IDs that are tracked but not yet in trackedJamsData
 	const missingTrackedJamIds = $derived(() => {
-		const currentTrackedDataIds = getJamIdsSet(trackedJamsData); // Use utility function
+		const currentTrackedDataIds = getJamIdsSet(trackedJamsData);
 		return Array.from(trackedJamIds).filter((id) => !currentTrackedDataIds.has(id));
 	});
 
@@ -168,7 +166,7 @@
 		if (missingTrackedJamIds().length > 0) {
 			fetchJamsByIds(missingTrackedJamIds()).then((fetchedJams) => {
 				// Only add new jams if they are not already present in trackedJamsData
-				const existingTrackedIds = getJamIdsSet(trackedJamsData); // Use utility function
+				const existingTrackedIds = getJamIdsSet(trackedJamsData);
 				const newJamsToAdd = fetchedJams.filter((jam: Jam) => !existingTrackedIds.has(jam.id));
 				// Always mark attempted IDs as handled to break the cycle
 				if (newJamsToAdd.length > 0) {
@@ -183,8 +181,8 @@
 
 	$effect(() => {
 		if (observer && sentinel && untrackedJamsContent) {
-			observer.disconnect(); // Disconnect old observer
-			observer.observe(sentinel); // Observe new sentinel
+			observer.disconnect();
+			observer.observe(sentinel);
 		}
 	});
 
@@ -222,7 +220,11 @@
 		<!-- Left Column -->
 		<div class="flex flex-col gap-6">
 			<h3 class="mb-2 text-lg font-semibold">Search</h3>
-			<Input type="text" placeholder="Search for a jam..." />
+			<Input
+				type="text"
+				placeholder="Search for a jam..."
+				class="bg-card text-card-foreground border-border focus:ring-primary w-full rounded border-0 px-4 py-2 focus:ring-2 focus:outline-none"
+			/>
 
 			<div class="flex flex-grow flex-col">
 				<div class="px-0 pb-2">
@@ -255,9 +257,9 @@
 		<!-- Right Column -->
 		<div class="flex flex-col gap-6">
 			<h3 class="mb-2 text-lg font-semibold">Category</h3>
-			<div class="mb-2">
+			<div class="relative mb-2">
 				<select
-					class="bg-card text-card-foreground border-border focus:ring-primary rounded border px-3 py-2 focus:ring-2 focus:outline-none"
+					class="bg-card text-card-foreground border-border focus:ring-primary w-full appearance-none rounded border px-4 py-2 pr-10 focus:ring-2 focus:outline-none"
 					bind:value={selectedCategory}
 					onchange={() => fetchJamsByCategory(selectedCategory)}
 				>
@@ -269,6 +271,11 @@
 						</option>
 					{/each}
 				</select>
+				<div
+					class="text-card-foreground pointer-events-none absolute inset-y-0 right-0 flex items-center px-2"
+				>
+					<ChevronDown class="size-4" />
+				</div>
 			</div>
 
 			<div class="flex flex-grow flex-col">

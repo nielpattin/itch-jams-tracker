@@ -2,7 +2,7 @@ import * as cheerio from 'cheerio';
 import { db } from '$lib/server/db';
 import { jam, type JamStatus } from '$lib/server/db/schema';
 import { env } from '$env/dynamic/private';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 
 async function fetchHtml(url: string): Promise<string | null> {
 	try {
@@ -18,7 +18,136 @@ async function fetchHtml(url: string): Promise<string | null> {
 	}
 }
 
+interface JamScriptData {
+	end_date?: string;
+	voting_end_date?: string;
+	start_date?: string;
+}
+
+function parseViewJamScriptData($: cheerio.CheerioAPI): JamScriptData | null {
+	let scriptData: JamScriptData | null = null;
+
+	$('script[type="text/javascript"]').each((i, scriptEl) => {
+		const scriptContent = $(scriptEl).html();
+		if (scriptContent) {
+			const match = scriptContent.match(
+				/new I\.ViewJam\s*\('#view_jam_\d+'\s*,\s*(\{[\s\S]*?\})\s*\);/
+			);
+			if (match && match[1]) {
+				try {
+					scriptData = JSON.parse(match[1]) as JamScriptData;
+					return false; // Break the loop
+				} catch (e) {
+					console.error('Error parsing script JSON:', e);
+				}
+			}
+		}
+	});
+	return scriptData;
+}
+
+async function updateMissingJams(processedJamUrls: Set<string>) {
+	console.log('Checking for missing jams to update...');
+	const allJamsInDb = await db.query.jam.findMany();
+
+	const missingJams = allJamsInDb.filter((dbJam) => !processedJamUrls.has(dbJam.jamPageUrl));
+
+	if (missingJams.length === 0) {
+		console.log('No missing jams found to update.');
+		return;
+	}
+
+	console.log(`Found ${missingJams.length} missing jams. Fetching individual pages...`);
+
+	const scraperDelayMs = parseInt(env.SCRAPER_DELAY_MS || '1000', 10);
+
+	for (const missingJam of missingJams) {
+		await new Promise((resolve) => setTimeout(resolve, scraperDelayMs));
+		console.log(`Fetching individual page for: ${missingJam.title} (${missingJam.jamPageUrl})`);
+		const html = await fetchHtml(missingJam.jamPageUrl);
+		if (!html) {
+			console.error(`Could not fetch HTML for ${missingJam.jamPageUrl}, skipping update.`);
+			continue;
+		}
+
+		const $ = cheerio.load(html);
+		const submitterWidget = $('div.jam_submitter_widget');
+		let newStatus: JamStatus | null = null;
+
+		if (submitterWidget.hasClass('during_voting')) {
+			newStatus = 'voting';
+		} else if (submitterWidget.hasClass('after_voting')) {
+			newStatus = 'ended';
+		} else if (
+			submitterWidget.hasClass('before_submissions') ||
+			submitterWidget.hasClass('before_start')
+		) {
+			newStatus = 'upcoming';
+		} else if (
+			submitterWidget.hasClass('during_submissions') ||
+			submitterWidget.hasClass('during_submit')
+		) {
+			newStatus = 'in-progress';
+		}
+
+		const scriptData = parseViewJamScriptData($);
+
+		let newStartDate: Date | null = null;
+		let newEndDate: Date | null = null;
+
+		if (scriptData) {
+			if (newStatus === 'voting' && scriptData.voting_end_date) {
+				newEndDate = new Date(scriptData.voting_end_date);
+			} else {
+				if (scriptData.start_date) {
+					newStartDate = new Date(scriptData.start_date);
+				}
+				if (scriptData.end_date) {
+					newEndDate = new Date(scriptData.end_date);
+				}
+			}
+		}
+
+		const updateFields: { status?: JamStatus; startDate?: Date | null; endDate?: Date | null } = {};
+		let needsUpdate = false;
+
+		if (newStatus && newStatus !== missingJam.status) {
+			updateFields.status = newStatus;
+			needsUpdate = true;
+		}
+
+		// Only update if the new date is valid and different from the existing one
+		if (newStartDate && newStartDate.getTime() !== missingJam.startDate?.getTime()) {
+			updateFields.startDate = newStartDate;
+			needsUpdate = true;
+		} else if (newStartDate === null && missingJam.startDate !== null) {
+			// If newStartDate is null but existing is not, set to null
+			updateFields.startDate = null;
+			needsUpdate = true;
+		}
+
+		if (newEndDate && newEndDate.getTime() !== missingJam.endDate?.getTime()) {
+			updateFields.endDate = newEndDate;
+			needsUpdate = true;
+		} else if (newEndDate === null && missingJam.endDate !== null) {
+			// If newEndDate is null but existing is not, set to null
+			updateFields.endDate = null;
+			needsUpdate = true;
+		}
+
+		if (needsUpdate) {
+			console.log(`Updating jam "${missingJam.title}" with:`, updateFields);
+			await db.update(jam).set(updateFields).where(eq(jam.jamPageUrl, missingJam.jamPageUrl));
+		} else {
+			console.log(`No significant updates needed for "${missingJam.title}".`);
+		}
+	}
+	console.log('Finished checking and updating missing jams.');
+}
+
 export async function scrapeItchIo() {
+	const processedJamUrls = new Set<string>();
+
 	const scraperDelayMs = parseInt(env.SCRAPER_DELAY_MS || '1000', 10);
 
 	const startUrls = [
@@ -33,7 +162,7 @@ export async function scrapeItchIo() {
 		let pageCount = 0;
 		const scraperMaxPages = env.SCRAPER_MAX_PAGES;
 		let loopIndefinitely = false;
-		let maxPages = 1; // Default or initial value
+		let maxPages = 1;
 
 		if (scraperMaxPages === 'MAX') {
 			loopIndefinitely = true;
@@ -43,8 +172,6 @@ export async function scrapeItchIo() {
 
 		while (nextPage && (loopIndefinitely || pageCount < maxPages)) {
 			if (pageCount > 0) {
-				// Apply delay only after the first page
-				console.log(`Waiting for ${scraperDelayMs}ms before next page scrape...`);
 				await new Promise((resolve) => setTimeout(resolve, scraperDelayMs));
 			}
 			const html = await fetchHtml(nextPage);
@@ -86,7 +213,6 @@ export async function scrapeItchIo() {
 					return null;
 				}
 
-				// Extract the status and determine which date to use
 				let startDate: Date | null = null;
 				let endDate: Date | null = null;
 
@@ -98,8 +224,7 @@ export async function scrapeItchIo() {
 					return null;
 				}
 
-				// Map the raw status text to the JamStatus enum
-				let status: JamStatus = 'upcoming'; // Default to 'upcoming' if no match
+				let status: JamStatus = 'upcoming';
 				switch (statusMatch[0]) {
 					case 'Starts in':
 						status = 'upcoming';
@@ -137,7 +262,6 @@ export async function scrapeItchIo() {
 
 				const fullUrl = new URL(jamUrl, 'https://itch.io').toString();
 
-				// Extract all required fields from the main page's div.jam element
 				const participatingUsers = parseInt(
 					$jamDiv.find('div.jam_stats .stat:first-child span.number').text().replace(/,/g, '') ||
 						'0',
@@ -194,12 +318,13 @@ export async function scrapeItchIo() {
 				}
 			}
 
+			jamsToInsert.forEach((j) => processedJamUrls.add(j.jamPageUrl));
+
 			const nextPageLink = $('a.next_page').attr('href');
-			pageCount++; // Increment pageCount at the end of the current page's processing
+			pageCount++;
 
 			if (nextPageLink) {
 				nextPage = new URL(nextPageLink, nextPage).toString();
-				// Only log if we are actually going to scrape the next page
 				if (loopIndefinitely || pageCount < maxPages) {
 					console.log(`Scraping page: ${nextPage}`);
 				}
@@ -208,4 +333,6 @@ export async function scrapeItchIo() {
 			}
 		}
 	}
+
+	await updateMissingJams(processedJamUrls);
 }
