@@ -36,10 +36,10 @@
 	// ------------------------------------------------
 
 	// Category filter state
-	const JAM_STATUSES = ['all', 'upcoming', 'in-progress', 'voting', 'ended'] as const;
+	const JAM_STATUSES = ['upcoming', 'in-progress', 'voting', 'ended'] as const;
 	type JamStatusFilter = (typeof JAM_STATUSES)[number];
 	let CATEGORY_KEY = 'itchjam-category';
-	let selectedCategory = $state<JamStatusFilter>('all');
+	let selectedCategory = $state<JamStatusFilter>(data.initialCategory as JamStatusFilter);
 
 	let trackedJamIds = $state(new Set<string>());
 	let trackedJamsData = $state<Jam[]>([]);
@@ -62,7 +62,37 @@
 			const newData = await response.json();
 			jams = newData.jams;
 			hasMore = newData.hasMore;
-			localStorage.setItem(CATEGORY_KEY, category);
+			nextOffset = newData.nextOffset;
+			document.cookie = `${CATEGORY_KEY}=${category};path=/;max-age=${60 * 60 * 24 * 7}`; // Set cookie for 7 days
+
+			// Explicitly re-initialize and observe the sentinel after new data is loaded
+			if (observer) {
+				observer.disconnect();
+				observer = null; // Clear the old observer
+			}
+			// Wait for next tick to ensure DOM is updated with new jams and sentinel
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			// Reset scroll position to top
+			if (untrackedJamsContent) {
+				untrackedJamsContent.scrollTop = 0;
+			}
+
+			if (sentinel && untrackedJamsContent) {
+				observer = new IntersectionObserver(
+					(entries) => {
+						for (const entry of entries) {
+							if (entry.isIntersecting) {
+								if (hasMore && !isLoading) {
+									loadMoreJams();
+								}
+							}
+						}
+					},
+					{ root: untrackedJamsContent, rootMargin: '0px 0px 400px 0px', threshold: 0 }
+				);
+				observer.observe(sentinel);
+			}
 		} catch (error) {
 			console.error('Error fetching jams by category:', error);
 		} finally {
@@ -75,7 +105,7 @@
 		isLoading = true;
 		try {
 			const response = await fetch(
-				`/jams?limit=10&offset=${jams.length}&category=${selectedCategory}`,
+				`/jams?limit=10&offset=${nextOffset}&category=${selectedCategory}`,
 				{
 					cache: 'no-store'
 				}
@@ -113,15 +143,6 @@
 	onMount(() => {
 		// Hydrate tracked jams from local storage immediately on mount
 		trackedJams.hydrate();
-
-		// Restore category from localStorage
-		const storedCategory = localStorage.getItem(CATEGORY_KEY);
-		if (
-			storedCategory &&
-			['all', 'upcoming', 'in-progress', 'voting', 'ended'].includes(storedCategory)
-		) {
-			selectedCategory = storedCategory as JamStatusFilter;
-		}
 
 		// Set up IntersectionObserver for infinite scroll
 		if (sentinel && untrackedJamsContent) {
@@ -176,13 +197,6 @@
 					missingTrackedJamIds().forEach((id) => trackedJams.remove(id));
 				}
 			});
-		}
-	});
-
-	$effect(() => {
-		if (observer && sentinel && untrackedJamsContent) {
-			observer.disconnect();
-			observer.observe(sentinel);
 		}
 	});
 
@@ -265,9 +279,7 @@
 				>
 					{#each JAM_STATUSES as status}
 						<option value={status}>
-							{status === 'all'
-								? 'All'
-								: status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
+							{status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
 						</option>
 					{/each}
 				</select>
