@@ -63,7 +63,7 @@ async function updateMissingJams(processedJamUrls: Set<string>) {
 
 	for (const missingJam of missingJams) {
 		await new Promise((resolve) => setTimeout(resolve, scraperDelayMs));
-		console.log(`Fetching individual page for: ${missingJam.title} (${missingJam.jamPageUrl})`);
+		console.log(`Get data for: ${missingJam.title} (${missingJam.jamPageUrl})`);
 		const html = await fetchHtml(missingJam.jamPageUrl);
 		if (!html) {
 			console.error(`Failed to fetch ${missingJam.jamPageUrl}: Not Found, deleting from database.`);
@@ -157,7 +157,7 @@ export async function scrapeItchIo() {
 	];
 
 	for (const url of startUrls) {
-		console.log(`Scraping page: ${url}`);
+		console.log(`Scanning page: ${url}`);
 
 		let nextPage: string | null = url;
 		let pageCount = 0;
@@ -327,7 +327,7 @@ export async function scrapeItchIo() {
 			if (nextPageLink) {
 				nextPage = new URL(nextPageLink, nextPage).toString();
 				if (loopIndefinitely || pageCount < maxPages) {
-					console.log(`Scraping page: ${nextPage}`);
+					console.log(`Scanning page: ${nextPage}`);
 				}
 			} else {
 				nextPage = null;
