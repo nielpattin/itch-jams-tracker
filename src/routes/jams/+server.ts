@@ -1,6 +1,6 @@
 import { db } from '$lib/server/db';
 import { jam } from '$lib/server/db/schema';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, and, sql } from 'drizzle-orm';
 import type { RequestHandler } from '@sveltejs/kit';
 
 function isDateLike(val: unknown): val is Date {
@@ -70,11 +70,19 @@ export const GET: RequestHandler = async ({ url }) => {
 	}
 
 	const category = url.searchParams.get('category') ?? 'all';
+	const search = url.searchParams.get('search') ?? '';
 
-	const where =
-		category && category !== 'all'
-			? eq(jam.status, category as import('$lib/server/db/schema').JamStatus)
-			: undefined;
+	const whereConditions = [];
+
+	if (category && category !== 'all') {
+		whereConditions.push(eq(jam.status, category as import('$lib/server/db/schema').JamStatus));
+	}
+
+	if (search) {
+		whereConditions.push(sql`lower(${jam.title}) like ${`%${search.toLowerCase()}%`}`);
+	}
+
+	const where = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
 	const jams = await db.query.jam.findMany({
 		where,

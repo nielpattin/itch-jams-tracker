@@ -18,6 +18,8 @@
 	let hasMore = $state(data.hasMore);
 	let nextOffset = $state(data.nextOffset);
 	let isLoading = $state(false);
+	let searchTerm = $state('');
+	let debounceTimeout: ReturnType<typeof setTimeout>;
 
 	const TIME_PREF_KEY = 'itchjam-time-preference';
 	let isLocal = $state(false);
@@ -46,18 +48,24 @@
 
 	const trackedJamsList = $derived(() => {
 		return trackedJamsData.filter(
-			(jam: Jam) => trackedJamIds.has(jam.id) && jam.category === selectedCategory
+			(jam: Jam) =>
+				trackedJamIds.has(jam.id) &&
+				jam.category === selectedCategory &&
+				jam.title.toLowerCase().includes(searchTerm.toLowerCase())
 		);
 	});
 	const untrackedJams = $derived(() => {
-		return jams.filter((jam: Jam) => !trackedJamIds.has(jam.id));
+		return jams.filter(
+			(jam: Jam) =>
+				!trackedJamIds.has(jam.id) && jam.title.toLowerCase().includes(searchTerm.toLowerCase())
+		);
 	});
 
 	// Fetch jams from server when category changes
-	async function fetchJamsByCategory(category: JamStatusFilter) {
+	async function fetchJams(category: JamStatusFilter, search: string = '') {
 		isLoading = true;
 		try {
-			const url = `/jams?category=${category}&limit=10&offset=0`;
+			const url = `/jams?category=${category}&limit=10&offset=0${search ? `&search=${search}` : ''}`;
 			const response = await fetch(url, {
 				cache: 'no-store'
 			});
@@ -96,7 +104,7 @@
 				observer.observe(sentinel);
 			}
 		} catch (error) {
-			console.error('Error fetching jams by category:', error);
+			console.error('Error fetching jams:', error);
 		} finally {
 			isLoading = false;
 		}
@@ -107,7 +115,7 @@
 		isLoading = true;
 		try {
 			const response = await fetch(
-				`/jams?limit=10&offset=${nextOffset}&category=${selectedCategory}`,
+				`/jams?limit=10&offset=${nextOffset}&category=${selectedCategory}${searchTerm ? `&search=${searchTerm}` : ''}`,
 				{
 					cache: 'no-store'
 				}
@@ -240,6 +248,13 @@
 				type="text"
 				placeholder="Search for a jam..."
 				class="bg-card text-card-foreground border-border focus:ring-primary w-full rounded border-0 px-4 py-2 focus:ring-2 focus:outline-none"
+				bind:value={searchTerm}
+				oninput={() => {
+					clearTimeout(debounceTimeout);
+					debounceTimeout = setTimeout(() => {
+						fetchJams(selectedCategory, searchTerm);
+					}, 500); // 500ms debounce
+				}}
 			/>
 
 			<div class="flex flex-grow flex-col">
@@ -277,7 +292,7 @@
 				<select
 					class="bg-card text-card-foreground border-border focus:ring-primary w-full appearance-none rounded border px-4 py-2 pr-10 focus:ring-2 focus:outline-none"
 					bind:value={selectedCategory}
-					onchange={() => fetchJamsByCategory(selectedCategory)}
+					onchange={() => fetchJams(selectedCategory, searchTerm)}
 				>
 					{#each JAM_STATUSES as status}
 						<option value={status}>
