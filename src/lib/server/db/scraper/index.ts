@@ -66,7 +66,8 @@ async function updateMissingJams(processedJamUrls: Set<string>) {
 		console.log(`Fetching individual page for: ${missingJam.title} (${missingJam.jamPageUrl})`);
 		const html = await fetchHtml(missingJam.jamPageUrl);
 		if (!html) {
-			console.error(`Could not fetch HTML for ${missingJam.jamPageUrl}, skipping update.`);
+			console.error(`Failed to fetch ${missingJam.jamPageUrl}: Not Found, deleting from database.`);
+			await db.delete(jam).where(eq(jam.jamPageUrl, missingJam.jamPageUrl));
 			continue;
 		}
 
@@ -139,7 +140,7 @@ async function updateMissingJams(processedJamUrls: Set<string>) {
 			console.log(`Updating jam "${missingJam.title}" with:`, updateFields);
 			await db.update(jam).set(updateFields).where(eq(jam.jamPageUrl, missingJam.jamPageUrl));
 		} else {
-			console.log(`No significant updates needed for "${missingJam.title}".`);
+			// No significant updates needed for "${missingJam.title}".
 		}
 	}
 	console.log('Finished checking and updating missing jams.');
