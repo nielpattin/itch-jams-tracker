@@ -16,7 +16,7 @@ export async function load({ url, cookies }) {
 	});
 
 	return {
-		jams,
+		jams: jams.map((j) => ({ ...j, category })),
 		nextOffset: offset + jams.length,
 		hasMore: jams.length === limit,
 		initialCategory: category

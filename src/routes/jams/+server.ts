@@ -45,15 +45,16 @@ export const GET: RequestHandler = async ({ url }) => {
 		// Ensure status is correct in the response, even if DB is stale
 		const now2 = Date.now();
 		const jamsWithCorrectStatus = updatedJams.map((jam) => {
+			let currentStatus = jam.status;
 			if (
 				jam.endDate &&
 				((typeof jam.endDate === 'number' && jam.endDate * 1000 <= now2) ||
 					(isDateLike(jam.endDate) && jam.endDate.getTime() <= now2)) &&
 				jam.status === 'in-progress'
 			) {
-				return { ...jam, status: 'ended' };
+				currentStatus = 'ended';
 			}
-			return jam;
+			return { ...jam, status: currentStatus, category: currentStatus };
 		});
 
 		return new Response(

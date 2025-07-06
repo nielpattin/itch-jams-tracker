@@ -11,7 +11,7 @@
 	import { getJamIdsSet } from '$lib/utils';
 	import { ChevronDown } from '@lucide/svelte';
 
-	type Jam = typeof jamSchema.$inferSelect;
+	type Jam = typeof jamSchema.$inferSelect & { category: JamStatusFilter };
 
 	let { data } = $props();
 	let jams = $state(data.jams);
@@ -45,7 +45,9 @@
 	let trackedJamsData = $state<Jam[]>([]);
 
 	const trackedJamsList = $derived(() => {
-		return trackedJamsData.filter((jam: Jam) => trackedJamIds.has(jam.id));
+		return trackedJamsData.filter(
+			(jam: Jam) => trackedJamIds.has(jam.id) && jam.category === selectedCategory
+		);
 	});
 	const untrackedJams = $derived(() => {
 		return jams.filter((jam: Jam) => !trackedJamIds.has(jam.id));
