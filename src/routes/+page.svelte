@@ -38,8 +38,8 @@
 	// ------------------------------------------------
 
 	// Category filter state
-	const JAM_STATUSES = ['upcoming', 'in-progress', 'voting', 'ended'] as const;
-	type JamStatusFilter = (typeof JAM_STATUSES)[number];
+	const JAM_STATUSES = ['all', 'upcoming', 'in-progress', 'voting', 'ended'] as const;
+	type JamStatusFilter = (typeof JAM_STATUSES)[number] | null;
 	let CATEGORY_KEY = 'itchjam-category';
 	let selectedCategory = $state<JamStatusFilter>(data.initialCategory as JamStatusFilter);
 
@@ -47,25 +47,40 @@
 	let trackedJamsData = $state<Jam[]>([]);
 
 	const trackedJamsList = $derived(() => {
-		return trackedJamsData.filter(
+		const filtered = trackedJamsData.filter(
 			(jam: Jam) =>
 				trackedJamIds.has(jam.id) &&
-				jam.category === selectedCategory &&
+				(selectedCategory === 'all' || jam.category === selectedCategory) &&
 				jam.title.toLowerCase().includes(searchTerm.toLowerCase())
 		);
+		return filtered;
 	});
 	const untrackedJams = $derived(() => {
-		return jams.filter(
+		const filtered = jams.filter(
 			(jam: Jam) =>
-				!trackedJamIds.has(jam.id) && jam.title.toLowerCase().includes(searchTerm.toLowerCase())
+				!trackedJamIds.has(jam.id) &&
+				(selectedCategory === 'all' || jam.category === selectedCategory) &&
+				jam.title.toLowerCase().includes(searchTerm.toLowerCase())
 		);
+		return filtered;
 	});
 
 	// Fetch jams from server when category changes
 	async function fetchJams(category: JamStatusFilter, search: string = '') {
 		isLoading = true;
 		try {
-			const url = `/jams?category=${category}&limit=10&offset=0${search ? `&search=${search}` : ''}`;
+			let url = `/jams?limit=10&offset=0`;
+			if (search) {
+				url += `&search=${search}`;
+				// When searching, always fetch all categories from backend, then filter on frontend
+				// This ensures category filter applies on top of search results
+				url += `&category=all`;
+			} else if (category && category !== 'all') {
+				url += `&category=${category}`;
+			} else {
+				// If no search and category is 'all' or null, explicitly set category to 'all' for backend
+				url += `&category=all`;
+			}
 			const response = await fetch(url, {
 				cache: 'no-store'
 			});
@@ -73,7 +88,14 @@
 			jams = newData.jams;
 			hasMore = newData.hasMore;
 			nextOffset = newData.nextOffset;
-			document.cookie = `${CATEGORY_KEY}=${category};path=/;max-age=${60 * 60 * 24 * 7}`; // Set cookie for 7 days
+
+			// Only set cookie if a specific category is selected and no search term is active
+			if (category && category !== 'all' && !search) {
+				document.cookie = `${CATEGORY_KEY}=${category};path=/;max-age=${60 * 60 * 24 * 7}`; // Set cookie for 7 days
+			} else if (search) {
+				// If search is active, ensure the cookie reflects 'all' or is cleared
+				document.cookie = `${CATEGORY_KEY}=all;path=/;max-age=${60 * 60 * 24 * 7}`;
+			}
 
 			// Explicitly re-initialize and observe the sentinel after new data is loaded
 			if (observer) {
@@ -114,12 +136,18 @@
 		if (!hasMore || isLoading) return;
 		isLoading = true;
 		try {
-			const response = await fetch(
-				`/jams?limit=10&offset=${nextOffset}&category=${selectedCategory}${searchTerm ? `&search=${searchTerm}` : ''}`,
-				{
-					cache: 'no-store'
-				}
-			);
+			let url = `/jams?limit=10&offset=${nextOffset}`;
+			if (searchTerm) {
+				url += `&search=${searchTerm}`;
+				url += `&category=all`; // Always fetch all categories from backend when searching
+			} else if (selectedCategory && selectedCategory !== 'all') {
+				url += `&category=${selectedCategory}`;
+			} else {
+				url += `&category=all`;
+			}
+			const response = await fetch(url, {
+				cache: 'no-store'
+			});
 			const newData = await response.json();
 			jams = [...jams, ...newData.jams];
 			nextOffset = newData.nextOffset;
@@ -252,6 +280,11 @@
 				oninput={() => {
 					clearTimeout(debounceTimeout);
 					debounceTimeout = setTimeout(() => {
+						// If there's a search term, automatically switch to 'all' category
+						// but allow user to re-select other categories for further filtering
+						if (searchTerm) {
+							selectedCategory = 'all';
+						}
 						fetchJams(selectedCategory, searchTerm);
 					}, 500); // 500ms debounce
 				}}

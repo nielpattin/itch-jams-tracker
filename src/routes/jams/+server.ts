@@ -69,12 +69,13 @@ export const GET: RequestHandler = async ({ url }) => {
 		);
 	}
 
-	const category = url.searchParams.get('category') ?? 'all';
+	const category = url.searchParams.get('category') ?? 'all'; // Re-add default 'all' for backend logic
 	const search = url.searchParams.get('search') ?? '';
 
 	const whereConditions = [];
 
-	if (category && category !== 'all') {
+	// Only apply category filter if no search term is present
+	if (!search && category && category !== 'all') {
 		whereConditions.push(eq(jam.status, category as import('$lib/server/db/schema').JamStatus));
 	}
 
@@ -84,11 +85,15 @@ export const GET: RequestHandler = async ({ url }) => {
 
 	const where = whereConditions.length > 0 ? and(...whereConditions) : undefined;
 
-	const jams = await db.query.jam.findMany({
+	const jamsRaw = await db.query.jam.findMany({
 		where,
 		limit,
 		offset
 	});
+	const jams = jamsRaw.map((jam) => ({
+		...jam,
+		category: jam.status
+	}));
 
 	return new Response(
 		JSON.stringify({
