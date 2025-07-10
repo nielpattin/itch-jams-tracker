@@ -49,6 +49,14 @@
 </script>
 
 <div class="container mx-auto py-8">
+	<div class="mb-4 flex justify-end">
+		<a
+			href="/"
+			class="bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground rounded border px-4 py-2 font-medium shadow transition-colors"
+		>
+			Home
+		</a>
+	</div>
 	<h1 class="mb-6 text-3xl font-bold">Admin Panel</h1>
 
 	<div class="bg-card rounded-lg p-6 shadow-md">

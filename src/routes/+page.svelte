@@ -355,7 +355,7 @@
 		<header class="flex items-center gap-4">
 			<h1 class="text-foreground mb-4 text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
 			<InfoButtons />
-			<div class="flex items-center gap-2">
+			<div class="ml-auto flex items-center gap-2">
 				<Switch id="time-preference" bind:checked={isLocal} onclick={handleSwitchChange} />
 				<Label for="time-preference">{timePreferenceLabel()}</Label>
 			</div>
