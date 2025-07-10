@@ -9,7 +9,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import type { jam as jamSchema } from '$lib/server/db/schema';
 	import { getJamIdsSet } from '$lib/utils';
-	import { ChevronDown } from '@lucide/svelte';
+	import { ChevronDown, X } from '@lucide/svelte';
 
 	type Jam = typeof jamSchema.$inferSelect & { category: JamStatusFilter };
 
@@ -365,24 +365,40 @@
 			<!-- Left Column -->
 			<div class="flex flex-col gap-6">
 				<h3 class="mb-2 text-lg font-semibold">Search</h3>
-				<Input
-					type="text"
-					placeholder="Search for a jam..."
-					class="bg-card text-card-foreground border-border focus:ring-primary w-full rounded border-0 px-4 py-2 focus:ring-2 focus:outline-none"
-					bind:value={searchTerm}
-					oninput={() => {
-						localStorage.setItem(SEARCH_TERM_KEY, searchTerm);
-						clearTimeout(debounceTimeout);
-						debounceTimeout = setTimeout(() => {
-							// If there's a search term, automatically switch to 'all' category
-							// but allow user to re-select other categories for further filtering
-							if (searchTerm) {
-								selectedCategory = 'all';
-							}
-							fetchJams(selectedCategory, searchTerm);
-						}, 500); // 500ms debounce
-					}}
-				/>
+				<div class="relative w-full">
+					<Input
+						type="text"
+						placeholder="Search for a jam..."
+						class="bg-card text-card-foreground border-border focus:ring-primary w-full rounded border-0 px-4 py-2 pr-10 focus:ring-2 focus:outline-none"
+						bind:value={searchTerm}
+						oninput={() => {
+							localStorage.setItem(SEARCH_TERM_KEY, searchTerm);
+							clearTimeout(debounceTimeout);
+							debounceTimeout = setTimeout(() => {
+								// If there's a search term, automatically switch to 'all' category
+								// but allow user to re-select other categories for further filtering
+								if (searchTerm) {
+									selectedCategory = 'all';
+								}
+								fetchJams(selectedCategory, searchTerm);
+							}, 500); // 500ms debounce
+						}}
+					/>
+					{#if searchTerm}
+						<button
+							type="button"
+							class="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 transition-colors"
+							onclick={() => {
+								searchTerm = '';
+								localStorage.setItem(SEARCH_TERM_KEY, '');
+								fetchJams(selectedCategory, '');
+							}}
+							aria-label="Clear search"
+						>
+							<X class="size-5" />
+						</button>
+					{/if}
+				</div>
 
 				<div class="flex flex-grow flex-col">
 					<div class="px-0 pb-2">
