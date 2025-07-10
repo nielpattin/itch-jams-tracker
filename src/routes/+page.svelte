@@ -18,11 +18,23 @@
 	let hasMore = $state(data.hasMore);
 	let nextOffset = $state(data.nextOffset);
 	let isLoading = $state(false);
+	let SEARCH_TERM_KEY = 'itchjam-search-term';
 	let searchTerm = $state('');
 	let debounceTimeout: ReturnType<typeof setTimeout>;
+	let ready = $state(false);
+	let showProgressModal = $state(false);
+	let fadeIn = $state(false);
+	let progress = $state(0);
+	let progressInterval: ReturnType<typeof setInterval> | null = null;
+	let progressDone = $state(false);
+	let loadingDone = $state(false);
+	let readyToFade = $state(false);
 
 	const TIME_PREF_KEY = 'itchjam-time-preference';
 	let isLocal = $state(false);
+
+	const PROGRESS_ANIMATION_DURATION = 300; // ms, how long the bar takes to fill
+	const PROGRESS_WAIT_AFTER_100 = 200; // ms, how long to wait after 100% before fade out
 
 	onMount(() => {
 		const stored = localStorage.getItem(TIME_PREF_KEY);
@@ -129,6 +141,7 @@
 			console.error('Error fetching jams:', error);
 		} finally {
 			isLoading = false;
+			ready = true;
 		}
 	}
 
@@ -179,8 +192,87 @@
 	}
 
 	onMount(() => {
+		ready = false;
+		let hasPersisted =
+			localStorage.getItem(SEARCH_TERM_KEY) !== null ||
+			localStorage.getItem(TIME_PREF_KEY) !== null ||
+			localStorage.getItem(CATEGORY_KEY) !== null;
+
 		// Hydrate tracked jams from local storage immediately on mount
 		trackedJams.hydrate();
+
+		// Restore time preference from localStorage
+		const storedTime = localStorage.getItem(TIME_PREF_KEY);
+		if (storedTime === 'Local' || storedTime === 'UTC') {
+			timePreference.set(storedTime);
+		}
+
+		// Restore category from cookie/localStorage
+		let restoredCategory = null;
+		const cookieMatch = document.cookie.match(/(?:^|;\s*)itchjam-category=([^;]*)/);
+		if (cookieMatch && cookieMatch[1]) {
+			restoredCategory = decodeURIComponent(cookieMatch[1]);
+		} else {
+			const storedCategory = localStorage.getItem(CATEGORY_KEY);
+			if (storedCategory) restoredCategory = storedCategory;
+		}
+		if (
+			typeof restoredCategory === 'string' &&
+			JAM_STATUSES.includes(restoredCategory as (typeof JAM_STATUSES)[number])
+		) {
+			selectedCategory = restoredCategory as JamStatusFilter;
+		}
+
+		// Restore search term from localStorage
+		const storedSearch = localStorage.getItem(SEARCH_TERM_KEY);
+		if (storedSearch !== null) {
+			searchTerm = storedSearch;
+		}
+
+		// Always show the main layout first, then show the modal after a tick
+		setTimeout(() => {
+			showProgressModal = true;
+			progress = 0;
+			progressDone = false;
+			loadingDone = false;
+			readyToFade = false;
+			if (progressInterval) clearInterval(progressInterval);
+			const start = Date.now();
+			progressInterval = setInterval(() => {
+				const elapsed = Date.now() - start;
+				const percent = Math.min(100, (elapsed / PROGRESS_ANIMATION_DURATION) * 100);
+				progress = percent;
+				if (percent >= 100) {
+					progress = 100;
+					progressDone = true;
+					clearInterval(progressInterval!);
+					progressInterval = null;
+					// Wait for the bar to visually reach 100% (transition), then start the wait
+					setTimeout(() => {
+						setTimeout(() => {
+							fadeIn = true;
+							setTimeout(() => {
+								showProgressModal = false;
+							}, 500);
+						}, PROGRESS_WAIT_AFTER_100);
+					}, PROGRESS_ANIMATION_DURATION);
+				}
+			}, 16);
+
+			setTimeout(() => {
+				if (hasPersisted) {
+					jams = [];
+					fetchJams(selectedCategory, searchTerm).then(() => {
+						loadingDone = true;
+						// Don't do anything here - let the progress bar control fade-out
+					});
+				} else {
+					showProgressModal = false;
+					ready = true;
+					fadeIn = true;
+				}
+			}, 200); // slight delay for UX
+		}, 0);
 
 		// Set up IntersectionObserver for infinite scroll
 		if (sentinel && untrackedJamsContent) {
@@ -255,118 +347,142 @@
 	}
 </script>
 
-<div
-	class="bg-background text-foreground mx-auto flex min-h-screen max-w-7xl flex-col space-y-6 p-4 md:space-y-8 md:p-6 lg:p-8"
->
-	<!-- Header Section -->
-	<header class="flex items-center gap-4">
-		<h1 class="text-foreground mb-4 text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
-		<InfoButtons />
-		<div class="flex items-center gap-2">
-			<Switch id="time-preference" bind:checked={isLocal} onclick={handleSwitchChange} />
-			<Label for="time-preference">{timePreferenceLabel()}</Label>
-		</div>
-	</header>
+{#if !showProgressModal && fadeIn}
+	<div
+		class="bg-background text-foreground mx-auto flex min-h-screen max-w-7xl flex-col space-y-6 p-4 transition-opacity duration-500 md:space-y-8 md:p-6 lg:p-8"
+	>
+		<!-- Header Section -->
+		<header class="flex items-center gap-4">
+			<h1 class="text-foreground mb-4 text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
+			<InfoButtons />
+			<div class="flex items-center gap-2">
+				<Switch id="time-preference" bind:checked={isLocal} onclick={handleSwitchChange} />
+				<Label for="time-preference">{timePreferenceLabel()}</Label>
+			</div>
+		</header>
 
-	<div class="grid flex-grow grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
-		<!-- Left Column -->
-		<div class="flex flex-col gap-6">
-			<h3 class="mb-2 text-lg font-semibold">Search</h3>
-			<Input
-				type="text"
-				placeholder="Search for a jam..."
-				class="bg-card text-card-foreground border-border focus:ring-primary w-full rounded border-0 px-4 py-2 focus:ring-2 focus:outline-none"
-				bind:value={searchTerm}
-				oninput={() => {
-					clearTimeout(debounceTimeout);
-					debounceTimeout = setTimeout(() => {
-						// If there's a search term, automatically switch to 'all' category
-						// but allow user to re-select other categories for further filtering
-						if (searchTerm) {
-							selectedCategory = 'all';
-						}
-						fetchJams(selectedCategory, searchTerm);
-					}, 500); // 500ms debounce
-				}}
-			/>
+		<div class="grid flex-grow grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-2">
+			<!-- Left Column -->
+			<div class="flex flex-col gap-6">
+				<h3 class="mb-2 text-lg font-semibold">Search</h3>
+				<Input
+					type="text"
+					placeholder="Search for a jam..."
+					class="bg-card text-card-foreground border-border focus:ring-primary w-full rounded border-0 px-4 py-2 focus:ring-2 focus:outline-none"
+					bind:value={searchTerm}
+					oninput={() => {
+						localStorage.setItem(SEARCH_TERM_KEY, searchTerm);
+						clearTimeout(debounceTimeout);
+						debounceTimeout = setTimeout(() => {
+							// If there's a search term, automatically switch to 'all' category
+							// but allow user to re-select other categories for further filtering
+							if (searchTerm) {
+								selectedCategory = 'all';
+							}
+							fetchJams(selectedCategory, searchTerm);
+						}, 500); // 500ms debounce
+					}}
+				/>
 
-			<div class="flex flex-grow flex-col">
-				<div class="px-0 pb-2">
-					<h2 class="text-lg font-semibold">Tracked Jams ({trackedJamsList().length})</h2>
-				</div>
-				<div
-					class="bg-background border-border max-h-[calc(100vh-350px)] overflow-y-auto rounded-lg border"
-				>
-					<div class="p-4">
-						{#if trackedJamsList().length > 0}
-							{#each trackedJamsList() as jam (jam.id)}
-								<JamListItem
-									{jam}
-									actionType="untrack"
-									onAction={() => handleUntrack(jam.id.toString())}
-								/>
-							{/each}
-						{:else}
-							<div class="text-muted-foreground flex flex-col items-center justify-center p-4">
-								<span class="mb-2 text-5xl">😔</span>
-								<p>No tracked jams yet for this category.</p>
-								<p>Start tracking some jams to see them here!</p>
-							</div>
-						{/if}
+				<div class="flex flex-grow flex-col">
+					<div class="px-0 pb-2">
+						<h2 class="text-lg font-semibold">Tracked Jams ({trackedJamsList().length})</h2>
+					</div>
+					<div
+						class="bg-background border-border max-h-[calc(100vh-350px)] overflow-y-auto rounded-lg border"
+					>
+						<div class="p-4">
+							{#if trackedJamsList().length > 0}
+								{#each trackedJamsList() as jam (jam.id)}
+									<JamListItem
+										{jam}
+										actionType="untrack"
+										onAction={() => handleUntrack(jam.id.toString())}
+									/>
+								{/each}
+							{:else}
+								<div class="text-muted-foreground flex justify-center p-4">No tracked jams.</div>
+							{/if}
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
 
-		<!-- Right Column -->
-		<div class="flex flex-col gap-6">
-			<h3 class="mb-2 text-lg font-semibold">Category</h3>
-			<div class="relative mb-2">
-				<select
-					class="bg-card text-card-foreground border-border focus:ring-primary w-full appearance-none rounded border px-4 py-2 pr-10 focus:ring-2 focus:outline-none"
-					bind:value={selectedCategory}
-					onchange={() => fetchJams(selectedCategory, searchTerm)}
-				>
-					{#each JAM_STATUSES as status}
-						<option value={status}>
-							{status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
-						</option>
-					{/each}
-				</select>
-				<div
-					class="text-card-foreground pointer-events-none absolute inset-y-0 right-0 flex items-center px-2"
-				>
-					<ChevronDown class="size-4" />
-				</div>
-			</div>
-
-			<div class="flex flex-grow flex-col">
-				<div class="px-0 pb-2">
-					<h2 class="text-lg font-semibold">Untracked Jams</h2>
-				</div>
-				<div
-					class="bg-background border-border max-h-[calc(100vh-350px)] overflow-y-auto rounded-lg border"
-					bind:this={untrackedJamsContent}
-				>
-					<div class="p-4">
-						{#each untrackedJams() as jam (jam.id)}
-							<JamListItem
-								{jam}
-								actionType="track"
-								onAction={() => handleTrack(jam.id.toString())}
-							/>
+			<!-- Right Column -->
+			<div class="flex flex-col gap-6">
+				<h3 class="mb-2 text-lg font-semibold">Category</h3>
+				<div class="relative mb-2">
+					<select
+						class="bg-card text-card-foreground border-border focus:ring-primary w-full appearance-none rounded border px-4 py-2 pr-10 focus:ring-2 focus:outline-none"
+						bind:value={selectedCategory}
+						onchange={() => fetchJams(selectedCategory, searchTerm)}
+					>
+						{#each JAM_STATUSES as status}
+							<option value={status}>
+								{status.charAt(0).toUpperCase() + status.slice(1).replace('-', ' ')}
+							</option>
 						{/each}
-						{#if isLoading}
-							<div class="text-muted-foreground flex justify-center p-4">Loading jams...</div>
-						{:else if !hasMore}
-							<div class="text-muted-foreground flex justify-center p-4">No more jams to load.</div>
-						{/if}
-						{#if hasMore}
-							<div bind:this={sentinel} style="height: 1px;"></div>
-						{/if}
+					</select>
+					<div
+						class="text-card-foreground pointer-events-none absolute inset-y-0 right-0 flex items-center px-2"
+					>
+						<ChevronDown class="size-4" />
+					</div>
+				</div>
+
+				<div class="flex flex-grow flex-col">
+					<div class="px-0 pb-2">
+						<h2 class="text-lg font-semibold">Untracked Jams</h2>
+					</div>
+					<div
+						class="bg-background border-border max-h-[calc(100vh-350px)] overflow-y-auto rounded-lg border"
+						bind:this={untrackedJamsContent}
+					>
+						<div class="p-4">
+							{#each untrackedJams() as jam (jam.id)}
+								<JamListItem
+									{jam}
+									actionType="track"
+									onAction={() => handleTrack(jam.id.toString())}
+								/>
+							{/each}
+							{#if isLoading}
+								<div class="text-muted-foreground flex justify-center p-4">Loading jams...</div>
+							{:else if !hasMore}
+								<div class="text-muted-foreground flex justify-center p-4">
+									No more jams to load.
+								</div>
+							{/if}
+							{#if hasMore}
+								<div bind:this={sentinel} style="height: 1px;"></div>
+							{/if}
+						</div>
 					</div>
 				</div>
 			</div>
 		</div>
 	</div>
-</div>
+{/if}
+{#if showProgressModal}
+	<div
+		class="bg-background/80 fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-500"
+		style="opacity: {fadeIn ? 0 : 1}; pointer-events: {fadeIn ? 'none' : 'auto'};"
+	>
+		<div class="bg-card flex w-full max-w-lg flex-col items-center rounded p-6 shadow-lg">
+			<div class="mb-4 w-full">
+				<div class="bg-muted h-2 w-full rounded">
+					<div
+						class="bg-primary h-2 rounded"
+						style="width: {progress}%; transition: width {PROGRESS_ANIMATION_DURATION}ms linear;"
+					></div>
+				</div>
+			</div>
+			<span class="text-card-foreground flex items-center gap-2 font-medium">
+				Loading your preferences...
+				<span class="text-muted-foreground ml-2 font-mono text-xs"
+					>{Math.round((progress / 100) * 100)}%</span
+				>
+			</span>
+		</div>
+	</div>
+{/if}
