@@ -86,3 +86,7 @@ export const jam = sqliteTable('jam', {
 		.$defaultFn(() => new Date())
 		.notNull()
 });
+export const scraperStatus = sqliteTable('scraper_status', {
+	id: text('id').primaryKey(),
+	status: text('status', { enum: ['idle', 'running'] }).notNull()
+});

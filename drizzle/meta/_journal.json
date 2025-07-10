@@ -1,41 +1,48 @@
 {
-  "version": "7",
-  "dialect": "sqlite",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "6",
-      "when": 1751246021801,
-      "tag": "0000_initial_schema",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1751249687778,
-      "tag": "0001_add_admin_plugin",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1751272528147,
-      "tag": "0002_add_jam_table",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "6",
-      "when": 1751424109701,
-      "tag": "0003_lush_slyde",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1751424212554,
-      "tag": "0004_Add host field to jam table",
-      "breakpoints": true
-    }
-  ]
+	"version": "7",
+	"dialect": "sqlite",
+	"entries": [
+		{
+			"idx": 0,
+			"version": "6",
+			"when": 1751246021801,
+			"tag": "0000_initial_schema",
+			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "6",
+			"when": 1751249687778,
+			"tag": "0001_add_admin_plugin",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "6",
+			"when": 1751272528147,
+			"tag": "0002_add_jam_table",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "6",
+			"when": 1751424109701,
+			"tag": "0003_lush_slyde",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "6",
+			"when": 1751424212554,
+			"tag": "0004_Add host field to jam table",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "6",
+			"when": 1752156654933,
+			"tag": "0005_add_scraper_status_table",
+			"breakpoints": true
+		}
+	]
 }

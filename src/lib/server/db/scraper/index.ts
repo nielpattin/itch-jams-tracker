@@ -156,6 +156,12 @@ export async function scrapeItchIo() {
 		'https://itch.io/jams/upcoming/sort-date'
 	];
 
+	// Helper to check if scraper should stop
+	async function shouldStopScraping() {
+		const statusRow = await db.query.scraperStatus.findFirst();
+		return statusRow?.status === 'idle';
+	}
+
 	for (const url of startUrls) {
 		console.log(`Scanning page: ${url}`);
 
@@ -172,6 +178,12 @@ export async function scrapeItchIo() {
 		}
 
 		while (nextPage && (loopIndefinitely || pageCount < maxPages)) {
+			// Check for stop before each page
+			if (await shouldStopScraping()) {
+				console.log('Scraping stopped by user.');
+				return;
+			}
+
 			if (pageCount > 0) {
 				await new Promise((resolve) => setTimeout(resolve, scraperDelayMs));
 			}
@@ -185,7 +197,18 @@ export async function scrapeItchIo() {
 
 			const jamDivs = $('div.jam');
 
+			let stopped = false;
 			const jamPromises = jamDivs.toArray().map(async (jamDiv) => {
+				// Check for stop before each jam
+				if (stopped) return null;
+				if (await shouldStopScraping()) {
+					if (!stopped) {
+						console.log('Scraping stopped by user (jam loop).');
+						stopped = true;
+					}
+					return null;
+				}
+
 				const $jamDiv = $(jamDiv);
 				const name = $jamDiv.find('h3 a').text();
 				if (!name) {
