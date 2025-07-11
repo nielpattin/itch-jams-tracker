@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import InfoButtons from '$lib/components/InfoButtons.svelte';
+	import { authClient } from '$lib/auth-client';
 	import { Input } from '$lib/components/ui/input';
 	import JamListItem from '$lib/components/JamListItem.svelte';
 	import { trackedJams } from '$lib/stores/trackedJams';
@@ -10,6 +11,7 @@
 	import type { jam as jamSchema } from '$lib/server/db/schema';
 	import { getJamIdsSet } from '$lib/utils';
 	import { ChevronDown, X } from '@lucide/svelte';
+	import { Button } from '$lib/components/ui/button';
 
 	type Jam = typeof jamSchema.$inferSelect & { category: JamStatusFilter };
 
@@ -32,6 +34,13 @@
 
 	const TIME_PREF_KEY = 'itchjam-time-preference';
 	let isLocal = $state(false);
+
+	let isAdmin = $state(false);
+
+	onMount(async () => {
+		const session = await authClient.getSession();
+		isAdmin = !!session?.data?.user.role && session.data.user.role === 'admin';
+	});
 
 	const PROGRESS_ANIMATION_DURATION = 300; // ms, how long the bar takes to fill
 	const PROGRESS_WAIT_AFTER_100 = 200; // ms, how long to wait after 100% before fade out
@@ -353,8 +362,16 @@
 	>
 		<!-- Header Section -->
 		<header class="flex items-center gap-4">
-			<h1 class="text-foreground mb-4 text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
+			<h1 class="text-foreground text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
 			<InfoButtons />
+			{#if isAdmin}
+				<a href="/admin">
+					<Button
+						class="bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground ml-2 cursor-pointer rounded border px-4 py-2 font-medium shadow transition-colors"
+						>Admin Page</Button
+					>
+				</a>
+			{/if}
 			<div class="ml-auto flex items-center gap-2">
 				<Switch id="time-preference" bind:checked={isLocal} onclick={handleSwitchChange} />
 				<Label for="time-preference">{timePreferenceLabel()}</Label>
