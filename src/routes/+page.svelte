@@ -352,6 +352,31 @@
 			/>
 		</div>
 	</div>
+
+	<footer class="bg-background border-border mt-12 w-full border-t py-6">
+		<div
+			class="container mx-auto flex flex-col items-center gap-4 px-4 md:flex-row md:justify-between"
+		>
+			<div class="flex flex-col items-center md:items-start">
+				<span class="text-muted-foreground text-sm"
+					>&copy; {new Date().getFullYear()} itch-jams. All rights reserved.</span
+				>
+				<span class="text-muted-foreground mt-2 block w-full text-center text-xs md:text-left">
+					This project is a community-driven, non-profit initiative and is not affiliated with or
+					endorsed by itch.io or its owners.<br />
+					All content is for educational and community purposes only.
+				</span>
+			</div>
+			<nav class="flex gap-4">
+				<a
+					href="https://github.com/nielfranci/itch-jams"
+					target="_blank"
+					rel="noopener"
+					class="text-muted-foreground hover:text-foreground transition-colors">GitHub</a
+				>
+			</nav>
+		</div>
+	</footer>
 {/if}
 
 <LoadingModal
