@@ -107,27 +107,12 @@
 				observer.disconnect();
 				observer = null;
 			}
-			await new Promise((resolve) => setTimeout(resolve, 0));
-
+			// Reset scroll position after fetching jams
 			if (untrackedJamsContent) {
 				untrackedJamsContent.scrollTop = 0;
 			}
 
-			if (sentinel && untrackedJamsContent) {
-				observer = new IntersectionObserver(
-					(entries) => {
-						for (const entry of entries) {
-							if (entry.isIntersecting) {
-								if (hasMore && !isLoading) {
-									loadMoreJams();
-								}
-							}
-						}
-					},
-					{ root: untrackedJamsContent, rootMargin: '0px 0px 400px 0px', threshold: 0 }
-				);
-				observer.observe(sentinel);
-			}
+			// Remove observer setup from here to handle in onMount
 		} catch (error) {
 			console.error('Error fetching jams:', error);
 		} finally {
@@ -256,27 +241,33 @@
 			}, 200);
 		}, 0);
 
-		if (sentinel && untrackedJamsContent) {
+		// Set up IntersectionObserver after component is mounted
+		$effect(() => {
+			if (!untrackedJamsContent || !sentinel) return;
+
+			// Ensure observer is disconnected before creating a new one
+			if (observer) {
+				observer.disconnect();
+			}
+
 			observer = new IntersectionObserver(
 				(entries) => {
 					for (const entry of entries) {
-						if (entry.isIntersecting) {
-							if (hasMore && !isLoading) {
-								loadMoreJams();
-							}
+						if (entry.isIntersecting && hasMore && !isLoading) {
+							loadMoreJams();
 						}
 					}
 				},
 				{ root: untrackedJamsContent, rootMargin: '0px 0px 400px 0px', threshold: 0 }
 			);
 			observer.observe(sentinel);
-		}
 
-		return () => {
-			if (observer) {
-				observer.disconnect();
-			}
-		};
+			return () => {
+				if (observer) {
+					observer.disconnect();
+				}
+			};
+		});
 	});
 
 	$effect(() => {
