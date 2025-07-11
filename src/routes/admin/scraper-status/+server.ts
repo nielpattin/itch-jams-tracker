@@ -8,7 +8,11 @@ async function getScraperStatus(): Promise<'running' | 'idle'> {
 	const row = await db.query.scraperStatus.findFirst({
 		where: eq(scraperStatus.id, 'singleton')
 	});
-	return row?.status === 'running' ? 'running' : 'idle';
+	if (!row) {
+		await db.insert(scraperStatus).values({ id: 'singleton', status: 'idle' });
+		return 'idle';
+	}
+	return row.status === 'running' ? 'running' : 'idle';
 }
 
 export async function GET() {
