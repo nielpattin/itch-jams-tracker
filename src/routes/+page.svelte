@@ -17,7 +17,7 @@
 	let { data } = $props();
 	let jams = $state(data.jams);
 	let hasMore = $state(data.hasMore);
-	let nextOffset = $state(data.nextOffset);
+	let currentPage = $state(1); // New state variable for current page
 	let isLoading = $state(false);
 	let searchTerm = $state('');
 	let debounceTimeout: ReturnType<typeof setTimeout>;
@@ -46,6 +46,12 @@
 		if (stored === 'Local' || stored === 'UTC') {
 			timePreference.set(stored);
 		}
+		// Persist timePreference changes to localStorage
+		timePreference.subscribe((val) => {
+			if (val === 'Local' || val === 'UTC') {
+				localStorage.setItem(TIME_PREF_KEY, val);
+			}
+		});
 	});
 
 	// Category filter state
@@ -80,7 +86,7 @@
 	async function fetchJams(category: JamStatusFilter, search: string = '') {
 		isLoading = true;
 		try {
-			let url = `/jams?limit=10&offset=0`;
+			let url = `/jams?page=1`;
 			if (search) {
 				url += `&search=${search}`;
 				url += `&category=all`;
@@ -95,12 +101,13 @@
 			const newData = await response.json();
 			jams = newData.jams;
 			hasMore = newData.hasMore;
-			nextOffset = newData.nextOffset;
+			currentPage = 1; // Reset to page 1 for new fetch
 
+			// Store category in localStorage only (no cookie needed)
 			if (category && category !== 'all' && !search) {
-				document.cookie = `${CATEGORY_KEY}=${category};path=/;max-age=${60 * 60 * 24 * 7}`;
-			} else if (search) {
-				document.cookie = `${CATEGORY_KEY}=all;path=/;max-age=${60 * 60 * 24 * 7}`;
+				localStorage.setItem(CATEGORY_KEY, category);
+			} else if (search || category === 'all') {
+				localStorage.setItem(CATEGORY_KEY, 'all');
 			}
 
 			if (observer) {
@@ -125,7 +132,8 @@
 		if (!hasMore || isLoading) return;
 		isLoading = true;
 		try {
-			let url = `/jams?limit=10&offset=${nextOffset}`;
+			const nextPage = currentPage + 1;
+			let url = `/jams?page=${nextPage}`;
 			if (searchTerm) {
 				url += `&search=${searchTerm}`;
 				url += `&category=all`;
@@ -139,7 +147,7 @@
 			});
 			const newData = await response.json();
 			jams = [...jams, ...newData.jams];
-			nextOffset = newData.nextOffset;
+			currentPage = nextPage; // Increment page number
 			hasMore = newData.hasMore;
 		} catch (error) {
 			console.error('Error loading more jams:', error);
@@ -315,6 +323,7 @@
 	}
 
 	function handleCategoryChange(category: JamStatusFilter) {
+		selectedCategory = category;
 		fetchJams(category, searchTerm);
 	}
 </script>

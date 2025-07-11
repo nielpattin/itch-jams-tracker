@@ -8,8 +8,10 @@ function isDateLike(val: unknown): val is Date {
 }
 
 export const GET: RequestHandler = async ({ url }) => {
-	const limit = Number(url.searchParams.get('limit') ?? 10);
-	const offset = Number(url.searchParams.get('offset') ?? 0);
+	const limit = Number(url.searchParams.get('limit') ?? 20);
+	const page = Number(url.searchParams.get('page') ?? 1);
+	const offset = (page - 1) * limit;
+	const category = url.searchParams.get('category') ?? 'all';
 	const idsParam = url.searchParams.get('ids');
 
 	if (idsParam) {
@@ -60,8 +62,8 @@ export const GET: RequestHandler = async ({ url }) => {
 		return new Response(
 			JSON.stringify({
 				jams: jamsWithCorrectStatus,
-				nextOffset: offset + jamsWithCorrectStatus.length,
-				hasMore: jamsWithCorrectStatus.length === Number(url.searchParams.get('limit') ?? 10)
+				nextPage: page + 1,
+				hasMore: jamsWithCorrectStatus.length === Number(url.searchParams.get('limit') ?? 20)
 			}),
 			{
 				headers: { 'Content-Type': 'application/json' }
@@ -69,7 +71,6 @@ export const GET: RequestHandler = async ({ url }) => {
 		);
 	}
 
-	const category = url.searchParams.get('category') ?? 'all'; // Re-add default 'all' for backend logic
 	const search = url.searchParams.get('search') ?? '';
 
 	const whereConditions = [];
@@ -98,7 +99,7 @@ export const GET: RequestHandler = async ({ url }) => {
 	return new Response(
 		JSON.stringify({
 			jams,
-			nextOffset: offset + jams.length,
+			nextPage: page + 1,
 			hasMore: jams.length === limit
 		}),
 		{
