@@ -20,7 +20,6 @@
 	let currentPage = $state(1); // New state variable for current page
 	let isLoading = $state(false);
 	let searchTerm = $state('');
-	let debounceTimeout: ReturnType<typeof setTimeout>;
 	let ready = $state(false);
 	let showProgressModal = $state(false);
 	let fadeIn = $state(false);

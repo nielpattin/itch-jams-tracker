@@ -28,8 +28,8 @@ const auth = betterAuth({
 	emailAndPassword: { enabled: true },
 	plugins: [admin()],
 	session: {
-		expiresIn: 60 * 5,
-		updateAge: 60 * 5
+		expiresIn: 60 * 60 * 24 * 7, // 1 week
+		updateAge: 60 * 60 * 24 * 7 // 1 week
 	}
 });
 
