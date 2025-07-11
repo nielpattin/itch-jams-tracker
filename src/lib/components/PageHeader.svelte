@@ -35,7 +35,7 @@
 		</a>
 	{/if}
 	<div class="ml-auto flex items-center gap-2">
-		<Switch id="time-preference" bind:checked={isLocal} onclick={handleSwitchChange} />
 		<Label for="time-preference">{timePreferenceLabel()}</Label>
+		<Switch id="time-preference" bind:checked={isLocal} onclick={handleSwitchChange} />
 	</div>
 </header>
