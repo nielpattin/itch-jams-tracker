@@ -1,6 +1,9 @@
 <script lang="ts">
 	import { authClient, signIn } from '$lib/auth-client';
 	import { goto } from '$app/navigation';
+	import Input from '$lib/components/ui/input/input.svelte';
+	import Label from '$lib/components/ui/label/label.svelte';
+	import Button from '$lib/components/ui/button/button.svelte';
 
 	let email = $state('');
 	let password = $state('');
@@ -23,96 +26,44 @@
 	}
 </script>
 
-<div class="login-container">
-	<h1>Login</h1>
-	<form onsubmit={handleLogin}>
-		<div class="form-group">
-			<label for="email">Email</label>
-			<input type="email" id="email" bind:value={email} required />
-		</div>
-		<div class="form-group">
-			<label for="password">Password</label>
-			<input type="password" id="password" bind:value={password} required />
-		</div>
-		{#if error}
-			<p class="error-message">{error}</p>
-		{/if}
-		<button type="submit">Login</button>
-	</form>
-	<p>Don't have an account? <a href="/signup">Sign Up</a></p>
+<div class="bg-background flex min-h-screen items-center justify-center px-4">
+	<div class="border-border bg-card w-full max-w-md rounded-xl border p-8 shadow-lg">
+		<h1 class="text-card-foreground mb-6 text-center text-3xl font-bold">Login</h1>
+		<form class="space-y-5" onsubmit={handleLogin}>
+			<div class="space-y-2">
+				<!-- Email Field -->
+				<!-- This is the email input component -->
+				<Label for="email" class="text-card-foreground">Email</Label>
+				<Input
+					id="email"
+					type="email"
+					bind:value={email}
+					required
+					autocomplete="email"
+					placeholder="you@example.com"
+				/>
+			</div>
+			<div class="space-y-2">
+				<!-- Password Field -->
+				<!-- This is the password input component -->
+				<Label for="password" class="text-card-foreground">Password</Label>
+				<Input
+					id="password"
+					type="password"
+					bind:value={password}
+					required
+					autocomplete="current-password"
+					placeholder="Your password"
+				/>
+			</div>
+			{#if error}
+				<p class="text-destructive text-center text-sm">{error}</p>
+			{/if}
+			<Button type="submit" class="w-full">Login</Button>
+		</form>
+		<p class="text-muted-foreground mt-6 text-center">
+			Don't have an account?
+			<a href="/signup" class="text-primary hover:underline">Sign Up</a>
+		</p>
+	</div>
 </div>
-
-<style>
-	.login-container {
-		max-width: 400px;
-		margin: 50px auto;
-		padding: 20px;
-		border: 1px solid #ddd;
-		border-radius: 8px;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-		background-color: #fff;
-	}
-
-	h1 {
-		text-align: center;
-		color: #333;
-		margin-bottom: 20px;
-	}
-
-	.form-group {
-		margin-bottom: 15px;
-	}
-
-	label {
-		display: block;
-		margin-bottom: 5px;
-		color: #555;
-		font-weight: bold;
-	}
-
-	input[type='email'],
-	input[type='password'] {
-		width: 100%;
-		padding: 10px;
-		border: 1px solid #ccc;
-		border-radius: 4px;
-		box-sizing: border-box; /* Ensures padding doesn't increase width */
-	}
-
-	button {
-		width: 100%;
-		padding: 10px;
-		background-color: #007bff;
-		color: white;
-		border: none;
-		border-radius: 4px;
-		font-size: 16px;
-		cursor: pointer;
-		transition: background-color 0.3s ease;
-	}
-
-	button:hover {
-		background-color: #0056b3;
-	}
-
-	.error-message {
-		color: red;
-		margin-bottom: 15px;
-		text-align: center;
-	}
-
-	p {
-		text-align: center;
-		margin-top: 20px;
-		color: #666;
-	}
-
-	p a {
-		color: #007bff;
-		text-decoration: none;
-	}
-
-	p a:hover {
-		text-decoration: underline;
-	}
-</style>
