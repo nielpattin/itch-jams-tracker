@@ -4,8 +4,10 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Button } from '$lib/components/ui/button';
 	import { timePreference } from '$lib/stores/timePreference';
+	import { useSession } from '$lib/auth-client';
 
 	let { isAdmin = false } = $props();
+	const session = useSession;
 
 	let isLocal = $state(false);
 
@@ -26,6 +28,15 @@
 <header class="flex items-center gap-4">
 	<h1 class="text-foreground text-2xl font-bold md:text-3xl">Itch Jam Tracker</h1>
 	<InfoButtons />
+	{#if !$session?.data?.user}
+		<a href="/login" class="ml-2">
+			<Button
+				class="bg-card text-card-foreground border-border hover:bg-accent hover:text-accent-foreground cursor-pointer rounded border px-4 py-2 font-medium shadow transition-colors"
+			>
+				Login
+			</Button>
+		</a>
+	{/if}
 	{#if isAdmin}
 		<a href="/admin">
 			<Button
