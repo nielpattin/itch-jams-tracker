@@ -151,10 +151,7 @@ export async function scrapeItchIo() {
 
 	const scraperDelayMs = parseInt(env.SCRAPER_DELAY_MS || '1000', 10);
 
-	const startUrls = [
-		'https://itch.io/jams/in-progress/sort-date',
-		'https://itch.io/jams/upcoming/sort-date'
-	];
+	const startUrls = [env.JAM_URL_1, env.JAM_URL_2, env.JAM_URL_3];
 
 	// Helper to check if scraper should stop
 	async function shouldStopScraping() {

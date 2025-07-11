@@ -369,7 +369,7 @@
 			</div>
 			<nav class="flex gap-4">
 				<a
-					href="https://github.com/nielfranci/itch-jams"
+					href="https://github.com/nielpattin/itch-jams-tracker"
 					target="_blank"
 					rel="noopener"
 					class="text-muted-foreground hover:text-foreground transition-colors">GitHub</a

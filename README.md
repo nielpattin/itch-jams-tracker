@@ -1,6 +1,6 @@
-# itch-jams-tracker
+# Itch Jams Tracker
 
-[![License](https://img.shields.io/github/license/your-org/itch-jams-tracker?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/github/license/nielpattin/itch-jams-tracker?style=flat-square)](LICENSE)
 [![SvelteKit](https://img.shields.io/badge/built%20with-SvelteKit-ff3e00?style=flat-square)](https://kit.svelte.dev/)
 [![Drizzle ORM](https://img.shields.io/badge/ORM-Drizzle-4B8BBE?style=flat-square)](https://orm.drizzle.team/)
 
@@ -9,6 +9,10 @@
 A modern, open-source SvelteKit app for tracking and managing itch.io game jams. Built with SvelteKit, Drizzle ORM, and Tailwind CSS.
 
 ---
+
+<p align="center">
+  <img src="static/web-page-main.png" alt="Web page main screenshot" width="800" />
+</p>
 
 ## 🚀 Features
 
